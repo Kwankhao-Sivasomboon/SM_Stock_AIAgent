@@ -1,0 +1,10 @@
+Flask==3.0.0
+line-bot-sdk==3.5.0
+sqlalchemy==2.0.23
+python-dotenv==1.0.0
+yfinance==0.2.33
+pandas==2.1.4
+apscheduler==3.10.4
+requests==2.31.0
+google-genai==0.3.0
+gunicorn==21.2.0
