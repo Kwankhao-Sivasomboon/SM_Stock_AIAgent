@@ -26,6 +26,10 @@ analyzer = AnalysisEngine()
 # Simple In-Memory State
 USER_STATES = {}
 
+# Ensure Database Tables are created on startup
+from database import Base, engine
+Base.metadata.create_all(bind=engine)
+
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers.get('X-Line-Signature')
@@ -427,7 +431,4 @@ def cron_trigger():
     return "Cron Job Completed", 200
 
 if __name__ == "__main__":
-    # Create DB Tables if not exist
-    from database import Base, engine
-    Base.metadata.create_all(bind=engine)
     app.run(port=5000)

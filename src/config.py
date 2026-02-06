@@ -11,7 +11,11 @@ class Config:
     BASE_DIR = BASE_DIR
     # Database (Ensure app.db is in the project root)
     DB_PATH = os.path.join(BASE_DIR, 'app.db')
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', f'sqlite:///{DB_PATH}')
+    database_url = os.getenv('DATABASE_URL')
+    if database_url and database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    
+    SQLALCHEMY_DATABASE_URI = database_url or f'sqlite:///{DB_PATH}'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Line API
