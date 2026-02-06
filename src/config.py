@@ -13,11 +13,9 @@ class Config:
     DB_PATH = os.path.join(BASE_DIR, 'app.db')
     database_url = os.getenv('DATABASE_URL')
     if database_url:
-        # Fix for Supabase/Postgres schemes to use pg8000 driver (Pure Python = Safer)
+        # Fix for Supabase (just handle postgres->postgresql alias if needed, but don't force driver)
         if database_url.startswith("postgres://"):
-            database_url = database_url.replace("postgres://", "postgresql+pg8000://", 1)
-        elif database_url.startswith("postgresql://"):
-            database_url = database_url.replace("postgresql://", "postgresql+pg8000://", 1)
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
     
     SQLALCHEMY_DATABASE_URI = database_url or f'sqlite:///{DB_PATH}'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
