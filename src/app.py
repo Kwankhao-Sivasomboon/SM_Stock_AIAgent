@@ -26,9 +26,15 @@ analyzer = AnalysisEngine()
 # Simple In-Memory State
 USER_STATES = {}
 
-# Ensure Database Tables are created on startup
+# Ensure Database Tables are created safely on startup
 from database import Base, engine
-Base.metadata.create_all(bind=engine)
+try:
+    print("Attempting to initialize database...")
+    Base.metadata.create_all(bind=engine)
+    print("Database initialization successful.")
+except Exception as e:
+    print(f" Database Init Warning: {e}")
+    print("The app will continue, but database operations might fail.")
 
 @app.route("/callback", methods=['POST'])
 def callback():
