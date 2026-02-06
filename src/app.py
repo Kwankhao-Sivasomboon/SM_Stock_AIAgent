@@ -416,5 +416,18 @@ def handle_postback(event):
     finally:
         db.close()
 
+@app.route("/cron/trigger", methods=['GET', 'POST'])
+def cron_trigger():
+    """
+    Endpoint for Google Cloud Scheduler to trigger hourly checks.
+    """
+    print("Cron Triggered by Cloud Scheduler")
+    from worker import check_jobs
+    check_jobs()
+    return "Cron Job Completed", 200
+
 if __name__ == "__main__":
+    # Create DB Tables if not exist
+    from database import Base, engine
+    Base.metadata.create_all(bind=engine)
     app.run(port=5000)

@@ -22,3 +22,4 @@ coverage.xml
 .vscode
 Dockerfile
 README.md
+deploy_guide.md
