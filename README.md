@@ -32,35 +32,6 @@ The system follows a modern **Event-Driven Analysis** flow:
 3.  **Background Processing**: A detached thread fetches data and calls Gemini AI.
 4.  **Delivery**: Results are pushed back to the user asynchronously.
 
-## Installation & Setup
-
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/yourusername/aiagent-linestock.git
-    cd aiagent-linestock
-    ```
-
-2.  **Setup Environment**
-    Create a `.env` file:
-    ```env
-    LINE_CHANNEL_ACCESS_TOKEN=your_token
-    LINE_CHANNEL_SECRET=your_secret
-    GEMINI_API_KEY=your_gemini_key
-    GEMINI_MODEL_NAME=gemini-3-flash
-    ```
-
-3.  **Run with Docker (Recommended)**
-    ```bash
-    docker build -t stock-agent .
-    docker run -p 8080:8080 --env-file .env stock-agent
-    ```
-
-4.  **Run Locally (Dev)**
-    ```bash
-    pip install -r requirements.txt
-    python src/app.py
-    ```
-
 ## Screenshots
 
 | Watchlist Carousel | AI Analysis Report | Settings Menu |
