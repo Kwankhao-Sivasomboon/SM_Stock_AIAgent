@@ -28,38 +28,147 @@ def _replace_recursive(obj, replacements):
     return obj
 
 def get_add_stock_confirm_flex(symbol, company_name, price):
-    template = load_template("add.json")
-    if not template: return None
-    replacements = {
-        "Stock_Name": symbol,
-        "company_name": company_name or symbol,
-        "current_price": f"{price:,.2f}" if price else "N/A"
+    # Safe Price Format
+    price_fmt = "N/A"
+    try:
+        if price:
+            val = float(price)
+            price_fmt = f"{val:,.2f}"
+    except:
+        price_fmt = str(price)
+
+    try:
+        template = load_template("add.json")
+        if template:
+            replacements = {
+                "Stock_Name": str(symbol),
+                "company_name": str(company_name or symbol),
+                "current_price": price_fmt
+            }
+            bubble = _replace_recursive(template, replacements)
+            return {"type": "flex", "altText": f"Confirm {symbol}", "contents": bubble}
+    except Exception as e:
+        print(f"[TEMPLATE ERROR] {e}")
+
+    # Fallback Hardcoded Bubble (Safety Net)
+    return {
+      "type": "flex",
+      "altText": f"Confirm {symbol}",
+      "contents": {
+        "type": "bubble",
+        "body": {
+          "type": "box",
+          "layout": "vertical",
+          "contents": [
+            {"type": "text", "text": "CONFIRM ADD", "weight": "bold", "color": "#1DB446", "size": "xs"},
+            {"type": "text", "text": str(symbol), "weight": "bold", "size": "xl", "margin": "md"},
+            {"type": "text", "text": f"Price: {price_fmt}", "size": "md", "color": "#555555", "margin": "sm"},
+            {"type": "separator", "margin": "lg"},
+            {"type": "box", "layout": "horizontal", "margin": "md", "spacing": "md", "contents": [
+                {
+                    "type": "button", "style": "primary", "height": "sm", "color": "#1DB446",
+                    "action": {"type": "postback", "label": "YES", "data": f"action=confirm_add&symbol={symbol}"}
+                },
+                {
+                    "type": "button", "style": "secondary", "height": "sm", "color": "#aaaaaa",
+                    "action": {"type": "postback", "label": "NO", "data": "action=cancel"}
+                }
+            ]}
+          ]
+        }
+      }
     }
-    bubble = _replace_recursive(template, replacements)
-    return {"type": "flex", "altText": f"Confirm {symbol}", "contents": bubble}
 
 def get_watchlist_carousel(stocks):
-    base_bubble = load_template("watch_list.json")
-    if not base_bubble: return None
+    try:
+        base_bubble = load_template("watch_list.json")
+        if base_bubble:
+            bubbles = []
+            for stock in stocks:
+                symbol = stock.symbol
+                company = getattr(stock, 'company_name', symbol) or symbol
+                replacements = {"Stock_Name": str(symbol), "stock_name": str(symbol), "company_name": str(company)}
+                bubbles.append(_replace_recursive(base_bubble, replacements))
+            if bubbles:
+                 return {"type": "flex", "altText": "Watchlist", "contents": {"type": "carousel", "contents": bubbles}}
+    except Exception as e:
+        print(f"[TEMPLATE ERROR Watchlist] {e}")
+
+    # Fallback Carousel (Premium Design)
     bubbles = []
     for stock in stocks:
-        symbol = stock.symbol
-        company = getattr(stock, 'company_name', symbol) or symbol
-        replacements = {"Stock_Name": symbol, "stock_name": symbol, "company_name": company}
-        bubbles.append(_replace_recursive(base_bubble, replacements))
-    if not bubbles: return None
+        sym = str(stock.symbol)
+        
+        # Determine color based on index (Just for variety or fixed)
+        header_color = "#0D47A1" # Deep Blue
+        
+        bubbles.append({
+            "type": "bubble",
+            "size": "micro",
+            "header": {
+                "type": "box", "layout": "vertical", "backgroundColor": header_color, "paddingAll": "10px",
+                "contents": [
+                    {"type": "text", "text": sym, "color": "#ffffff", "weight": "bold", "size": "xl"},
+                    {"type": "text", "text": "WATCHLIST", "color": "#eeeeee", "size": "xxs"}
+                ]
+            },
+            "body": {
+                "type": "box", "layout": "vertical", "paddingAll": "10px",
+                "contents": [
+                    {
+                        "type": "box", "layout": "vertical", "spacing": "sm",
+                        "contents": [
+                            {"type": "button", "style": "primary", "height": "sm", "color": "#1DB446",
+                             "action": {"type": "message", "label": "📈 Analyze", "text": f"Analyze {sym}"}},
+                            {"type": "button", "style": "secondary", "height": "sm", "color": "#aaaaaa",
+                             "action": {"type": "postback", "label": "⚙️ Settings", "data": f"action=settings&symbol={sym}"}},
+                            {"type": "separator", "margin": "sm"},
+                            {"type": "button", "style": "link", "height": "sm", "color": "#ff4444",
+                             "action": {"type": "postback", "label": "❌ Remove", "data": f"action=delete&symbol={sym}"}}
+                        ]
+                    }
+                ]
+            }
+        })
     return {"type": "flex", "altText": "Watchlist", "contents": {"type": "carousel", "contents": bubbles}}
 
 def get_global_setting_flex():
-    template = load_template("carousel_setting_global.json")
-    if not template: return None
-    return {"type": "flex", "altText": "Global Settings", "contents": template}
+    try:
+        template = load_template("carousel_setting_global.json")
+        if template: return {"type": "flex", "altText": "Global Settings", "contents": template}
+    except: pass
+    
+    # Fallback
+    return {"type": "text", "text": "Global Settings Template Error. Please use menu."}
 
 def get_specific_setting_flex(symbol):
-    template = load_template("carousel_setting_stock.json")
-    if not template: return None
-    replacements = {"stock_name": symbol, "Stock_Name": symbol}
-    return {"type": "flex", "altText": f"Settings {symbol}", "contents": _replace_recursive(template, replacements)}
+    try:
+        template = load_template("carousel_setting_stock.json")
+        if template:
+            replacements = {"stock_name": str(symbol), "Stock_Name": str(symbol)}
+            return {"type": "flex", "altText": f"Settings {symbol}", "contents": _replace_recursive(template, replacements)}
+    except Exception as e:
+        print(f"[TEMPLATE ERROR Settings] {e}")
+
+    # Fallback
+    return {
+        "type": "flex", "altText": f"Settings {symbol}",
+        "contents": {
+            "type": "bubble",
+            "body": {
+                "type": "box", "layout": "vertical",
+                "contents": [
+                    {"type": "text", "text": f"SETTINGS: {symbol}", "weight": "bold", "size": "lg"},
+                    {"type": "separator", "margin": "md"},
+                    {"type": "text", "text": "Adjust your preferences below", "size": "xs", "color": "#aaaaaa", "margin": "sm"},
+                    {"type": "button", "style": "secondary", "height": "sm", "margin": "md",
+                     "action": {"type": "postback", "label": "Toggle RSI Check", "data": f"action=toggle_rsi&symbol={symbol}"}},
+                     {"type": "button", "style": "secondary", "height": "sm", "margin": "sm",
+                     "action": {"type": "postback", "label": "Custom Alert", "data": f"action=set_alert&symbol={symbol}"}}
+                ]
+            }
+        }
+    }
 
 def get_scheduler_flex():
     template = load_template("scheduler.json")

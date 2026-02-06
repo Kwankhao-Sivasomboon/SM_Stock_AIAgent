@@ -6,6 +6,10 @@ from linebot.models import (
     PostbackEvent, FlexSendMessage
 )
 import yfinance as yf
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__))) # Fix ModuleNotFoundError in Docker
+
 from config import Config
 from database import SessionLocal, User, Watchlist
 from line_templates import (
@@ -13,6 +17,7 @@ from line_templates import (
     get_global_setting_flex, get_specific_setting_flex,
     get_scheduler_flex, get_analysis_flex
 )
+import yfinance as yf
 from analyzer import AnalysisEngine
 from datetime import datetime, timedelta
 
@@ -25,19 +30,23 @@ analyzer = AnalysisEngine()
 
 # Simple In-Memory State
 USER_STATES = {}
+_db_initialized = False
 
-# Ensure Database Tables are created safely on startup
-from database import Base, engine
-try:
-    print("Attempting to initialize database...")
-    Base.metadata.create_all(bind=engine)
-    print("Database initialization successful.")
-except Exception as e:
-    print(f" Database Init Warning: {e}")
-    print("The app will continue, but database operations might fail.")
+def ensure_db_initialized():
+    global _db_initialized
+    if not _db_initialized:
+        from database import Base, engine
+        try:
+            print("Lazy initializing database...")
+            Base.metadata.create_all(bind=engine)
+            _db_initialized = True
+            print("Database initialization successful.")
+        except Exception as e:
+            print(f"Database Init Warning: {e}")
 
 @app.route("/callback", methods=['POST'])
 def callback():
+    ensure_db_initialized()
     signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
     try:
@@ -56,27 +65,25 @@ def get_or_create_user(line_user_id):
     return user, db
 
 def check_stock_exists(symbol):
-    """Helper to find stock, supports automatic .BK suffixing"""
-    # 1. Try exact match (Priority for US Data)
+    """
+    Original simple check using yfinance
+    """
     try:
         t = yf.Ticker(symbol)
-        hist = t.history(period="1d") 
+        # Check by fetching minimal history
+        hist = t.history(period="5d")
         if not hist.empty:
             return symbol, hist['Close'].iloc[-1]
+            
+        # Try .BK
+        if not symbol.endswith(".BK"):
+             bk = symbol + ".BK"
+             t2 = yf.Ticker(bk)
+             hist2 = t2.history(period="5d")
+             if not hist2.empty:
+                 return bk, hist2['Close'].iloc[-1]
     except:
         pass
-
-    # 2. Try adding .BK (Fallback for Thai Data)
-    if not symbol.endswith(".BK") and "." not in symbol:
-        try:
-            bk_symbol = symbol + ".BK"
-            t_bk = yf.Ticker(bk_symbol)
-            hist = t_bk.history(period="1d")
-            if not hist.empty:
-                return bk_symbol, hist['Close'].iloc[-1]
-        except:
-            pass
-            
     return None, None
 
 @handler.add(MessageEvent, message=TextMessage)
@@ -125,6 +132,8 @@ def handle_message(event):
                     flex_content = get_add_stock_confirm_flex(found_symbol, found_symbol, price)
                     if flex_content and 'contents' in flex_content:
                         confirm_flexes.append(flex_content['contents'])
+                    else:
+                        print(f"[DEBUG] Flex gen failed for {found_symbol} Price: {price}")
         
         db.close()
 
@@ -200,7 +209,7 @@ def handle_postback(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text="ยกเลิกรายการ"))
 
         # --- Delete Stock ---
-        elif action == 'delete_stock' and symbol:
+        elif (action == 'delete_stock' or action == 'delete') and symbol:
             item = db.query(Watchlist).filter_by(user_id=user.id, symbol=symbol).first()
             if item:
                 db.delete(item)
@@ -210,15 +219,28 @@ def handle_postback(event):
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text="ไม่พบรายการที่จะลบ"))
 
         # --- Settings ---
-        elif action == 'specific_setting' and symbol:
-            flex = get_specific_setting_flex(symbol)
-            if flex:
-                line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text=f"Settings {symbol}", contents=flex['contents']))
+        elif (action == 'specific_setting' or action == 'settings') and symbol:
+            try:
+                flex = get_specific_setting_flex(symbol)
+                # Fallback check for text response
+                if isinstance(flex, dict) and flex.get('type') == 'text':
+                     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=flex['text']))
+                elif flex:
+                    line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text=f"Settings {symbol}", contents=flex['contents']))
+            except Exception as e:
+                print(f"[ERR SETTINGS Stock] {e}")
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="Error opening stock settings"))
 
-        elif action in ['main_setting', 'global_setting']:
-            flex = get_global_setting_flex()
-            if flex:
-                line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="Global Settings", contents=flex['contents']))
+        elif action in ['main_setting', 'global_setting', 'settings']:  # Added 'settings' for global fallback
+            try:
+                flex = get_global_setting_flex()
+                if isinstance(flex, dict) and flex.get('type') == 'text':
+                     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=flex['text']))
+                elif flex:
+                    line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="Global Settings", contents=flex['contents']))
+            except Exception as e:
+                print(f"[ERR SETTINGS Global] {e}")
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="Error opening global settings"))
 
         # --- Save Settings ---
         elif 'global' in action and 'setting' not in action:
@@ -431,6 +453,7 @@ def cron_trigger():
     """
     Endpoint for Google Cloud Scheduler to trigger hourly checks.
     """
+    ensure_db_initialized()
     print("Cron Triggered by Cloud Scheduler")
     from worker import check_jobs
     check_jobs()
