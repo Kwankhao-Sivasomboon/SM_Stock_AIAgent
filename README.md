@@ -1,6 +1,6 @@
 # AIAgent LineStock - AI-Powered Personal Investment Assistant
 
-A smart LINE Chatbot functioning as a personal financial analyst. It uses **Google Gemini 3 (Flash)** to analyze stock market data, technical indicators, and news in real-time, providing personalized investment recommendations based on user profiles.
+A smart LINE Chatbot functioning as a personal financial analyst. It uses **Google Gemini 2.5 (Flash)** with **Finnhub API** to analyze stock market data, technical indicators, and news in real-time, providing personalized investment recommendations based on user profiles.
 
 ## UX/UI
 **Add Stock:**
