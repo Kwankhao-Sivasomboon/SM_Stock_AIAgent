@@ -3,19 +3,24 @@
 A smart LINE Chatbot functioning as a personal financial analyst. It uses **Google Gemini 3 (Flash)** to analyze stock market data, technical indicators, and news in real-time, providing personalized investment recommendations based on user profiles.
 
 ## UX/UI
-Add Stock
+**Add Stock:**
+
 <img width="371" height="222" alt="Add" src="https://github.com/user-attachments/assets/ee16bde5-bf96-4590-bd08-85b7ea32047b" />
 
-Scheduler
+**Scheduler:**
+
 <img width="377" height="370" alt="Scheduler" src="https://github.com/user-attachments/assets/41659e15-be0d-4a5a-9dfb-2bbe8d044238" />
 
-Watch List
+**Watch List:**
+
 <img width="751" height="340" alt="WatchList" src="https://github.com/user-attachments/assets/4c8dc80b-0388-4cac-9664-b1b174e363a7" />
 
-Main Setting
+**Main Setting:**
+
 <img width="1529" height="588" alt="MainSetting" src="https://github.com/user-attachments/assets/922fb671-fb05-4ca9-b4f0-081b455c808f" />
 
-Report
+**Report:**
+
 <img width="1531" height="722" alt="Report" src="https://github.com/user-attachments/assets/2673091d-c41f-4f9d-934a-d8f198ae4cbf" />
 
 ## Key Features
