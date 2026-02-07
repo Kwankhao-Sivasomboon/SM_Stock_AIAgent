@@ -182,43 +182,44 @@ class AnalysisEngine:
             result.update(result['metrics'])
 
             # AI Analysis (One-Shot: Signal + Reason + News Summary)
-        try:
-            ai_output = self.llm.analyze_stock_ai(
-                symbol, data['price'], data['pe_ratio'], data['div_yield'], 
-                data.get('news', []), strategy=strategy, goal=goal, technicals=data['technicals']
-            )
-            
-            # Smart Parsing for Signal | Reason | News Summary
-            parts = [p.strip() for p in ai_output.split('|')]
-            
-            valid_signals = ["BUY", "SELL", "HOLD", "WAIT"]
-            found_signal = "WAIT"
-            reason_text = "รอการวิเคราะห์เพิ่มเติม"
-            news_summary_text = "ไม่มีข่าวสำคัญในช่วงนี้"
+            # AI Analysis (One-Shot: Signal + Reason + News Summary)
+            try:
+                ai_output = self.llm.analyze_stock_ai(
+                    symbol, data['price'], data['pe_ratio'], data['div_yield'], 
+                    data.get('news', []), strategy=strategy, goal=goal, technicals=data['technicals']
+                )
+                
+                # Smart Parsing for Signal | Reason | News Summary
+                parts = [p.strip() for p in ai_output.split('|')]
+                
+                valid_signals = ["BUY", "SELL", "HOLD", "WAIT"]
+                found_signal = "WAIT"
+                reason_text = "รอการวิเคราะห์เพิ่มเติม"
+                news_summary_text = "ไม่มีข่าวสำคัญในช่วงนี้"
 
-            # Parse Parts (Index 0: Signal, 1: Reason, 2: News)
-            if len(parts) >= 1:
-                sig_candidate = parts[0].upper()
-                for vs in valid_signals:
-                    if vs in sig_candidate:
-                        found_signal = vs
-                        break
-            
-            if len(parts) >= 2: reason_text = parts[1]
-            if len(parts) >= 3: news_summary_text = parts[2]
-            
-            result['signal'] = found_signal
-            result['reason'] = reason_text
-            result['news_summary'] = news_summary_text
-            
-        except Exception as e:
-            print(f"[AI ERROR] {e}")
-            result['signal'] = "WAIT"
-            result['reason'] = "AI ประมวลผลขัดข้อง"
-            result['news_summary'] = "-"
+                # Parse Parts (Index 0: Signal, 1: Reason, 2: News)
+                if len(parts) >= 1:
+                    sig_candidate = parts[0].upper()
+                    for vs in valid_signals:
+                        if vs in sig_candidate:
+                            found_signal = vs
+                            break
+                
+                if len(parts) >= 2: reason_text = parts[1]
+                if len(parts) >= 3: news_summary_text = parts[2]
+                
+                result['signal'] = found_signal
+                result['reason'] = reason_text
+                result['news_summary'] = news_summary_text
+                
+            except Exception as e:
+                print(f"[AI ERROR] {e}")
+                result['signal'] = "WAIT"
+                result['reason'] = "AI ประมวลผลขัดข้อง"
+                result['news_summary'] = "-"
 
             return result
 
-        except Exception as e:
-            print(f"[CRITICAL ANALYZE ERROR] {e}")
-            return None
+    except Exception as e:
+        print(f"[CRITICAL ANALYZE ERROR] {e}")
+        return None
