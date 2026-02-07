@@ -271,7 +271,7 @@ def get_analysis_flex(symbol, signal, recommendation, details):
         graph_section = [
             {"type": "separator", "margin": "lg", "color": "#DDDDDD"},
             {"type": "text", "text": "📈 30-Day Chart", "size": "xs", "weight": "bold", "color": "#888888", "margin": "sm", "align": "center"},
-            {"type": "image", "url": chart_url, "size": "full", "aspectRatio": "20:13", "aspectMode": "cover", "margin": "md"},
+            {"type": "image", "url": chart_url, "size": "full", "aspectRatio": "20:13", "aspectMode": "fit", "margin": "md"},
             {"type": "separator", "margin": "lg", "color": "#DDDDDD"},
             {"type": "box", "layout": "vertical", "contents": [], "height": "10px"} # Spacer
         ]

@@ -143,9 +143,17 @@ class AnalysisEngine:
             if not data:
                 return {
                     "symbol": symbol,
-                    "metrics": {"Price": "N/A", "P/E": "-", "Yield": "-"},
-                    "signal": "ERROR",
-                    "reason": "ไม่พบข้อมูลหุ้น (Data Unavailable) หรือระบบเชื่อมต่อขัดข้อง"
+                    "metrics": {
+                        "Price": "N/A", "P/E": "-", "Yield": "-", "RSI": "-",
+                        "price": None, "pe_ratio": None, "div_yield": None, "market_cap": None,
+                        "technicals": {} # Crucial: Must exist for template safe_get
+                    },
+                    "signal": "WAIT",
+                    "reason": "ไม่สามารถดึงข้อมูลได้ (ตลาดปิดหรืออยู่นอกเวลาทำการ)",
+                    "news_summary": "-",
+                    "history": [],
+                    "news": [],
+                    "technicals": {}
                 }
 
             # Prepare Result Dict
@@ -173,56 +181,41 @@ class AnalysisEngine:
             # Flatten metrics to top-level for Template compatibility
             result.update(result['metrics'])
 
-            # AI Analysis (Summarize News + Generate Signal)
-            news_summary = ""
-            if data.get('news'):
-                try:
-                    news_summary = self.llm.summarize_news(data['news'])
-                    result['news_summary'] = news_summary
-                except: news_summary = "-"
+            # AI Analysis (One-Shot: Signal + Reason + News Summary)
+        try:
+            ai_output = self.llm.analyze_stock_ai(
+                symbol, data['price'], data['pe_ratio'], data['div_yield'], 
+                data.get('news', []), strategy=strategy, goal=goal, technicals=data['technicals']
+            )
             
-            # Generate Signal (Robust Parsing)
-            try:
-                ai_output = self.llm.analyze_stock_ai(
-                    symbol, data['price'], data['pe_ratio'], data['div_yield'], 
-                    news_summary, strategy=strategy, goal=goal, technicals=data['technicals']
-                )
-                
-                # Smart Parsing for Signal
-                valid_signals = ["BUY", "SELL", "HOLD", "WAIT"]
-                cleaned_output = ai_output.replace("Signal:", "").replace("Category:", "").strip()
-                parts = [p.strip() for p in cleaned_output.split('|')]
-                
-                found_signal = None
-                reason_text = "รอการวิเคราะห์เพิ่มเติม"
-                
-                # Strategy: Find signal word in parts
-                for i, part in enumerate(parts):
-                    upper_part = part.upper()
-                    for vs in valid_signals:
-                        if vs == upper_part or upper_part.startswith(vs):
-                            found_signal = vs
-                            if i + 1 < len(parts): reason_text = parts[i+1]
-                            break
-                    if found_signal: break
-                
-                # Fallback: Search full string
-                if not found_signal:
-                    upper_full = cleaned_output.upper()
-                    for vs in valid_signals:
-                        if vs in upper_full:
-                            found_signal = vs
-                            after_signal = cleaned_output.split(vs, 1)[-1]
-                            reason_text = after_signal.strip(" |:-")
-                            break
-                
-                result['signal'] = found_signal if found_signal else "WAIT"
-                result['reason'] = reason_text if reason_text and len(reason_text) > 5 else ai_output 
-                
-            except Exception as e:
-                print(f"[AI ERROR] {e}")
-                result['signal'] = "WAIT"
-                result['reason'] = "AI ประมวลผลขัดข้อง"
+            # Smart Parsing for Signal | Reason | News Summary
+            parts = [p.strip() for p in ai_output.split('|')]
+            
+            valid_signals = ["BUY", "SELL", "HOLD", "WAIT"]
+            found_signal = "WAIT"
+            reason_text = "รอการวิเคราะห์เพิ่มเติม"
+            news_summary_text = "ไม่มีข่าวสำคัญในช่วงนี้"
+
+            # Parse Parts (Index 0: Signal, 1: Reason, 2: News)
+            if len(parts) >= 1:
+                sig_candidate = parts[0].upper()
+                for vs in valid_signals:
+                    if vs in sig_candidate:
+                        found_signal = vs
+                        break
+            
+            if len(parts) >= 2: reason_text = parts[1]
+            if len(parts) >= 3: news_summary_text = parts[2]
+            
+            result['signal'] = found_signal
+            result['reason'] = reason_text
+            result['news_summary'] = news_summary_text
+            
+        except Exception as e:
+            print(f"[AI ERROR] {e}")
+            result['signal'] = "WAIT"
+            result['reason'] = "AI ประมวลผลขัดข้อง"
+            result['news_summary'] = "-"
 
             return result
 

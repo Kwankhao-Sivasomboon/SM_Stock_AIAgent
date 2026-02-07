@@ -60,22 +60,38 @@ class SettradeHelper:
                 except: return 0.0
 
             # Handle Attributes (SDK v2)
-            last = getattr(quote, 'last', 0)
-            if not last: last = quote.get('last', 0)
-            if safe_float(last) == 0: return None
-
-            return {
-                "price": safe_float(last),
-                "change": safe_float(getattr(quote, 'change', 0)),
-                "percent_change": safe_float(getattr(quote, 'percentChange', 0)),
-                "high": safe_float(getattr(quote, 'high', 0)),
-                "low": safe_float(getattr(quote, 'low', 0)),
-                "vol": safe_float(getattr(quote, 'volume', 0)),
-                "val": safe_float(getattr(quote, 'value', 0)),
-                "pe": safe_float(getattr(quote, 'pe', 0)),         
-                "pbv": safe_float(getattr(quote, 'pbv', 0)),
-                "yield": safe_float(getattr(quote, 'yield', 0))    
-            }
+            # Use getattr with default None to handle missing attributes safely
+            try:
+                last_price = getattr(quote, 'last', None) or 0
+                
+                return {
+                    "price": safe_float(last_price),
+                    "change": safe_float(getattr(quote, 'change', 0)),
+                    "percent_change": safe_float(getattr(quote, 'percentChange', 0)),
+                    "high": safe_float(getattr(quote, 'high', 0)),
+                    "low": safe_float(getattr(quote, 'low', 0)),
+                    "vol": safe_float(getattr(quote, 'totalVolume', 0)), # 'volume' might be 'totalVolume' in some versions
+                    "val": safe_float(getattr(quote, 'totalValue', 0)),  # 'value' might be 'totalValue'
+                    "pe": safe_float(getattr(quote, 'pe', 0)),         
+                    "pbv": safe_float(getattr(quote, 'pbv', 0)),
+                    "yield": safe_float(getattr(quote, 'dividendYield', 0)) # 'yield' might be 'dividendYield'
+                }
+            except AttributeError:
+                 # Fallback for some SDK versions returning dict
+                 if isinstance(quote, dict):
+                     return {
+                        "price": safe_float(quote.get('last', 0)),
+                        "change": safe_float(quote.get('change', 0)),
+                        "percent_change": safe_float(quote.get('percentChange', 0)),
+                        "high": safe_float(quote.get('high', 0)),
+                        "low": safe_float(quote.get('low', 0)),
+                        "vol": safe_float(quote.get('totalVolume', 0) or quote.get('volume', 0)),
+                        "val": safe_float(quote.get('totalValue', 0) or quote.get('value', 0)),
+                        "pe": safe_float(quote.get('pe', 0)),
+                        "pbv": safe_float(quote.get('pbv', 0)),
+                        "yield": safe_float(quote.get('dividendYield', 0) or quote.get('yield', 0))
+                     }
+                 return None
         except Exception as e:
             print(f"[SETTRADE QUOTE ERROR] {symbol}: {e}")
             return None

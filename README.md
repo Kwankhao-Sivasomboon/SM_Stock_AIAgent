@@ -49,8 +49,12 @@ The system follows a modern **Event-Driven Analysis** flow with robust error han
         *   **Smart Fallback**: If primary data is missing (0 or Null), the system displays "N/A" instead of misleading zeros.
         *   **Caching Strategy**: A daily maintenance job prunes old cache entries at 03:00 AM (Market Close) to ensure fresh data for the next trading day.
         *   **Delays**: Added precise sleep intervals between requests to stay within free tier limits.
-*   **Challenge**: Slow External APIs (Finnhub) causing timeouts.
-    *   **Solution**: Reduced API timeouts to 3 seconds and implemented a **Fail-Fast** mechanism to prioritize system responsiveness over complete data in worst-case scenarios.
+*   **Challenge**: Slow External APIs causing timeouts.
+    *   **Solution**: Reduced API timeouts to 3 seconds and implemented a **Fail-Fast** mechanism to prioritize system responsiveness.
+*   **Challenge**: Inconsistent AI Signals and Market Hours handling.
+    *   **Solution**:
+        *   **Deterministic AI**: Tuned LLM Temperature to 0.2 to ensure consistent BUY/SELL/HOLD advice for the same financial input.
+        *   **Graceful Degradation**: If markets are closed or data is unavailable (e.g., Settrade error), the system returns a specific "WAIT" signal with an explanation instead of crashing or disappearing.
 
 ## License
 This project is for educational and portfolio purposes.

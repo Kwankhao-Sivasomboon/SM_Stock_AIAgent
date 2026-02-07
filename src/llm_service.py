@@ -30,27 +30,33 @@ class LLMService:
         if not self.model:
             return "AI Service Not Configured."
         try:
-            # Old SDK Call Structure
-            response = self.model.generate_content(prompt)
+            # Old SDK Call Structure with Lower Temperature for Consistency
+            config = genai.types.GenerationConfig(temperature=0.2)
+            response = self.model.generate_content(prompt, generation_config=config)
             if response and response.text:
                 return response.text.strip()
             return "No response from AI."
         except Exception as e:
             return f"AI Connection Error: {str(e)}"
 
-    def analyze_stock_ai(self, symbol, price, pe_ratio, div_yield, news_summary, strategy="General", goal="Medium", technicals=None):
+    def analyze_stock_ai(self, symbol, price, pe_ratio, div_yield, news_list, strategy="General", goal="Medium", technicals=None):
         """
-        Uses Gemini (via google.generativeai) to analyze stock based on comprehensive financial data.
+        One-Shot Analysis: News Summary + Financial Analysis + Signal Generation in 1 call.
         """
         
+        # Handling News List
+        news_context = "No news found."
+        if news_list:
+            news_context = "\n- ".join(news_list[:3]) # Top 3 headlines
+            
         # Robust Missing Data Handling
         pe_str = str(pe_ratio)
         dy_str = str(div_yield)
         missing_note = ""
-        if pe_str == "0" or pe_str == "N/A" or pe_str == "None" or not pe_ratio:
+        if pe_str in ["0", "0.0", "N/A", "None", "None.00"] or not pe_ratio:
             pe_str = "N/A (Ignore P/E)"
             missing_note += " P/E is missing."
-        if dy_str == "0" or dy_str == "N/A" or dy_str == "None" or not div_yield:
+        if dy_str in ["0", "0.0", "N/A", "None", "None.00"] or not div_yield:
             dy_str = "N/A (Ignore Yield)"
             missing_note += " Yield is missing."
 
@@ -67,16 +73,19 @@ class LLMService:
 
         prompt = (
             f"Analyze stock {symbol} for Strategy: '{strategy}' (Goal: '{goal}').\n"
-            f"Financial Data: Price={price}, P/E={pe_str}, DivYield={dy_str}%\n"
-            f"{tech_context}"
-            f"News Context: {news_summary}\n\n"
-            "Task: Provide a Buy/Sell/Hold recommendation.\n"
-            "CRITICAL RULES:\n"
-            f"1. STRICTLY follow the User Strategy '{strategy}'.\n"
-            f"2. If P/E or Yield is N/A/0, DO NOT mention them in reason. Focus on Price Trend/Technicals/News.{missing_note}\n"
-            "3. Output format MUST be exactly: Category | Signal | Reason (Thai)\n"
-            "4. Reason must be short, concise, in Thai (Max 1 sentence).\n"
-            "Example: Value | WAIT | ข้อมูลพื้นฐานไม่ครบถ้วน รอสัญญาณทางเทคนิคชัดเจนกว่านี้"
+            f"Current Price: {price}, P/E: {pe_str}, Yield: {dy_str}%\n"
+            f"{tech_context}\n"
+            f"Recent News Headlines:\n{news_context}\n\n"
+            "TASK: Perform holistic analysis and return the result in EXACTLY this format:\n"
+            "SIGNAL | REASON | NEWS_SUMMARY\n\n"
+            "RULES:\n"
+            "1. SIGNAL: Choose from [BUY, SELL, HOLD, WAIT].\n"
+            "2. REASON: Explain the analytical reasoning (Thai, 1 concise sentence).\n"
+            "3. NEWS_SUMMARY: Summarize the provided news impact (Thai, 2-3 short sentences).\n"
+            f"4. Focus context on '{strategy}' strategy and '{goal}' goal.\n"
+            "5. If news is not provided, NEWS_SUMMARY should be 'ไม่มีข่าวสำคัญในช่วงนี้'.\n"
+            "6. Output MUST start with the SIGNAL.\n"
+            "\nExample: HOLD | ราคายังทรงตัวเหนือแนวรับสำคัญ แต่ RSI เข้าใกล้เขต Overbought | ข่าวในช่วงนี้เน้นไปที่การประกาศกำไรที่ทรงตัวตามคาด แต่มีปัจจัยลบจากดอกเบี้ย"
         )
         
         return self._call_gemini(prompt)
@@ -93,7 +102,8 @@ class LLMService:
             f"Headlines:\n{combined_news}\n\n"
             f"Requirements:\n"
             f"1. Translate and summarize the key points into Thai language ONLY.\n"
-            f"2. Keep it informative but concise.\n"
+            f"2. Strictly limit to 2-3 sentences maximum (under 250 characters).\n"
+            f"3. Focus on market impact (Positive/Negative).\n"
             f"Thai Summary:"
         )
         

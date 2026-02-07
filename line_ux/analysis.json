@@ -144,7 +144,7 @@
            "size": "xxs",
            "color": "#aaaaaa",
            "wrap": true,
-           "maxLines": 2,
+           "maxLines": 6,
            "margin": "md"
       }
     ]
