@@ -2,11 +2,12 @@ Flask==3.0.0
 line-bot-sdk==3.5.0
 sqlalchemy==2.0.23
 python-dotenv==1.0.0
-yfinance==0.2.40
+finnhub-python==2.4.19
 pandas==2.1.4
 apscheduler==3.10.4
 requests==2.31.0
-google-genai==0.3.0
+google-generativeai
 gunicorn==21.2.0
-psycopg2-binary==2.9.9
+pg8000==1.30.3
+settrade-v2
 

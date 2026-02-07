@@ -1,0 +1,170 @@
+{
+  "type": "bubble",
+  "direction": "ltr",
+  "header": {
+    "type": "box",
+    "layout": "vertical",
+    "backgroundColor": "#FFFFFF",
+    "contents": [
+      {
+        "type": "text",
+        "text": "ANALYSIS REPORT",
+        "weight": "bold",
+        "size": "xs",
+        "color": "#1DB446",
+        "align": "start"
+      },
+      {
+        "type": "text",
+        "text": "STOCK_SYMBOL",
+        "weight": "bold",
+        "size": "3xl",
+        "color": "#000000",
+        "margin": "xs",
+        "align": "start"
+      },
+      {
+        "type": "text",
+        "text": "SIGNAL_TEXT",
+        "weight": "bold",
+        "size": "xxl",
+        "color": "SIGNAL_COLOR",
+        "align": "start",
+        "margin": "md"
+      }
+    ]
+  },
+  "hero": {
+    "type": "image",
+    "url": "CHART_URL",
+    "size": "full",
+    "aspectRatio": "2:1",
+    "aspectMode": "fit",
+    "action": {
+      "type": "uri",
+      "uri": "CHART_URL"
+    }
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "RECOMMENDATION_TEXT",
+        "size": "sm",
+        "color": "#000000",
+        "wrap": true,
+        "weight": "bold",
+        "align": "start"
+      },
+      {
+        "type": "separator",
+        "margin": "lg"
+      },
+      {
+        "type": "text",
+        "text": "📊 Key Statistics",
+        "weight": "bold",
+        "size": "sm",
+        "margin": "md",
+        "color": "#333333"
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {"type": "text", "text": "Price", "size": "xs", "color": "#aaaaaa", "flex": 1},
+          {"type": "text", "text": "VAL_PRICE", "size": "xs", "color": "#333333", "align": "end", "flex": 1}
+        ]
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {"type": "text", "text": "P/E", "size": "xs", "color": "#aaaaaa", "flex": 1},
+          {"type": "text", "text": "VAL_PE", "size": "xs", "color": "#333333", "align": "end", "flex": 1}
+        ]
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {"type": "text", "text": "Yield", "size": "xs", "color": "#aaaaaa", "flex": 1},
+          {"type": "text", "text": "VAL_YIELD", "size": "xs", "color": "#333333", "align": "end", "flex": 1}
+        ]
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {"type": "text", "text": "RSI (14)", "size": "xs", "color": "#aaaaaa", "flex": 1},
+          {"type": "text", "text": "VAL_RSI", "size": "xs", "color": "#333333", "align": "end", "flex": 1}
+        ]
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {"type": "text", "text": "SMA (50)", "size": "xs", "color": "#aaaaaa", "flex": 1},
+          {"type": "text", "text": "VAL_SMA", "size": "xs", "color": "#333333", "align": "end", "flex": 1}
+        ]
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {"type": "text", "text": "Mkt Cap", "size": "xs", "color": "#aaaaaa", "flex": 1},
+          {"type": "text", "text": "VAL_MKT", "size": "xs", "color": "#333333", "align": "end", "flex": 1}
+        ]
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {"type": "text", "text": "52W High", "size": "xs", "color": "#aaaaaa", "flex": 1},
+          {"type": "text", "text": "VAL_YH", "size": "xs", "color": "#333333", "align": "end", "flex": 1}
+        ]
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {"type": "text", "text": "52W Low", "size": "xs", "color": "#aaaaaa", "flex": 1},
+          {"type": "text", "text": "VAL_YL", "size": "xs", "color": "#333333", "align": "end", "flex": 1}
+        ]
+      },
+      {
+           "type": "separator",
+           "margin": "lg"
+      },
+      {
+           "type": "text",
+           "text": "NEWS_TEXT",
+           "size": "xxs",
+           "color": "#aaaaaa",
+           "wrap": true,
+           "maxLines": 2,
+           "margin": "md"
+      }
+    ]
+  },
+  "footer": {
+    "type": "box",
+    "layout": "vertical",
+    "spacing": "sm",
+    "contents": [
+      {
+        "type": "button",
+        "style": "secondary",
+        "height": "sm",
+        "color": "#F0F2F5", 
+        "action": {
+          "type": "uri",
+          "label": "See Realtime Data",
+          "uri": "LINK_URI"
+        }
+      }
+    ]
+  }
+}

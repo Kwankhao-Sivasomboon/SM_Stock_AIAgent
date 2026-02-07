@@ -5,13 +5,31 @@ from linebot import LineBotApi
 from linebot.models import FlexSendMessage
 
 from config import Config
-from database import SessionLocal, Schedule, User, Watchlist
+from database import SessionLocal, Schedule, User, Watchlist, GlobalStockInfo
 from analyzer import AnalysisEngine
 from line_templates import get_analysis_flex
 
 # Initialize Services
 line_bot_api = LineBotApi(Config.LINE_CHANNEL_ACCESS_TOKEN)
 analyzer = AnalysisEngine()
+
+def prune_cache():
+    """
+    Daily Cache Maintenance: Remove entries older than 24 hours.
+    Runs at 03:00 AM (Before Thai/US Market active hours)
+    """
+    print("[Worker] Pruning Global Stock Cache...")
+    db = SessionLocal()
+    try:
+        # Define threshold (e.g., 24 hours ago)
+        cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+        deleted = db.query(GlobalStockInfo).filter(GlobalStockInfo.updated_at < cutoff).delete()
+        db.commit()
+        print(f"[Worker] Cache Pruned: Removed {deleted} old entries.")
+    except Exception as e:
+        print(f"[Worker] Pruning Error: {e}")
+    finally:
+        db.close()
 
 def process_schedule(schedule):
     """
@@ -29,14 +47,16 @@ def process_schedule(schedule):
             print(f"User {user.id} has no watchlist.")
             return
 
-        # Simple batch processing
-        for item in watchlist:
+        # Sequential processing to respect API Rate Limits (Twelve Data: 8 req/min)
+        # Each analysis uses ~2 credits (Quote + Candles). Max 4 stocks/min.
+        # Delay 15s between stocks ensures we don't hit the limit.
+        for index, item in enumerate(watchlist):
             # Use specific setting if set, else fallback to global user setting
             strat = item.strategy or user.core_strategy
             goal = item.goal or user.investment_goal
             risk = item.risk or user.risk_appetite
             
-            print(f"Analyzing {item.symbol} (Strat:{strat}, Goal:{goal})...")
+            print(f"[{index+1}/{len(watchlist)}] Analyzing {item.symbol}...")
             
             # Pass ALL user contexts to Analyzer -> LLM
             analysis_result = analyzer.analyze(
@@ -47,16 +67,12 @@ def process_schedule(schedule):
             )
             
             if analysis_result:
-                # Format: Specific > Global
-                fmt = item.report_format or user.report_format or "Summary"
-                
                 # Create Flex Message with new Technical Data inside details
                 flex = get_analysis_flex(
                     symbol=analysis_result['symbol'],
                     signal=analysis_result['signal'],
                     recommendation=analysis_result['reason'],
-                    details=analysis_result['metrics'], # Contains Technicals like RSI
-                    report_format=fmt
+                    details=analysis_result['metrics'] # Contains Technicals like RSI
                 )
                 
                 # Push Message to Line
@@ -65,6 +81,11 @@ def process_schedule(schedule):
                     print(f"Sent report for {item.symbol} to {user.line_user_id}")
                 except Exception as e:
                     print(f"Failed to send line message: {e}")
+            
+            # Rate Limit Delay (skip after last item)
+            if index < len(watchlist) - 1:
+                print("Waiting 15s for API Rate Limit protection...")
+                time.sleep(15) 
                     
         # Update last run time
         schedule.last_run = datetime.datetime.now()
@@ -105,11 +126,14 @@ def check_jobs():
         db.close()
 
 if __name__ == "__main__":
-    print("Starting AI Agent Worker (Hourly Mode)...")
+    print("Starting AI Agent Worker (Hourly Mode + Daily Maintenance)...")
     scheduler = BlockingScheduler(timezone=Config.SCHEDULER_TIMEZONE)
     
-    # minute 0 of every hour (09:00, 10:00, ...)
+    # Hourly Job (Check User Schedules)
     scheduler.add_job(check_jobs, 'cron', minute=0)
+    
+    # Daily Job (Reset Cache at 03:00 AM)
+    scheduler.add_job(prune_cache, 'cron', hour=3, minute=0)
     
     try:
         scheduler.start()

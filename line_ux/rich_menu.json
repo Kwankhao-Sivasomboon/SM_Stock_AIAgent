@@ -1,0 +1,88 @@
+{
+  "size": {
+    "width": 2500,
+    "height": 1686
+  },
+  "selected": true,
+  "name": "SM_Stock_Agent_Rich_Menu",
+  "chatBarText": "Menu",
+  "areas": [
+    {
+      "bounds": {
+        "x": 0,
+        "y": 4,
+        "width": 836,
+        "height": 836
+      },
+      "action": {
+        "type": "message",
+        "text": "เพิ่มรายชื่อหุ้น"
+      }
+    },
+    {
+      "bounds": {
+        "x": 832,
+        "y": 0,
+        "width": 836,
+        "height": 845
+      },
+      "action": {
+        "type": "postback",
+        "text": "ตั้งเวลาแจ้งเตือน",
+        "data": "action=set_time"
+      }
+    },
+    {
+      "bounds": {
+        "x": 1668,
+        "y": 4,
+        "width": 828,
+        "height": 841
+      },
+      "action": {
+        "type": "postback",
+        "text": "แสดงผลการวิเคราะห์",
+        "data": "action=get_report"
+      }
+    },
+    {
+      "bounds": {
+        "x": 0,
+        "y": 836,
+        "width": 836,
+        "height": 850
+      },
+      "action": {
+        "type": "postback",
+        "text": "แสดงรายการหุ้นทั้งหมด",
+        "data": "action=view_watchlist"
+      }
+    },
+    {
+      "bounds": {
+        "x": 840,
+        "y": 845,
+        "width": 824,
+        "height": 836
+      },
+      "action": {
+        "type": "postback",
+        "text": "ตั้งค่าตัวแปรทั่วไป",
+        "data": "action=main_setting"
+      }
+    },
+    {
+      "bounds": {
+        "x": 1668,
+        "y": 845,
+        "width": 832,
+        "height": 832
+      },
+      "action": {
+        "type": "postback",
+        "text": "ผลงานอื่นๆ",
+        "data": "action=our_products"
+      }
+    }
+  ]
+}

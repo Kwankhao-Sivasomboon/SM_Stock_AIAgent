@@ -23,3 +23,14 @@ coverage.xml
 Dockerfile
 README.md
 deploy_guide.md
+
+# Images and Assets
+Images/
+images/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+.env
+*.db

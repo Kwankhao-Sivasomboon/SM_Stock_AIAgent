@@ -1,0 +1,95 @@
+{
+  "type": "bubble",
+  "header": {
+    "type": "box",
+    "layout": "vertical",
+    "backgroundColor": "#EEEEEE",
+    "contents": [
+      {
+        "type": "text",
+        "text": "CONFIRM ADD",
+        "color": "#888888",
+        "weight": "bold",
+        "size": "xs"
+      },
+      {
+        "type": "text",
+        "text": "Stock_Name",
+        "weight": "bold",
+        "size": "3xl",
+        "color": "#000000",
+        "margin": "xs"
+      }
+    ]
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "company_name",
+        "size": "md",
+        "color": "#555555",
+        "wrap": true,
+        "weight": "bold"
+      },
+      {
+        "type": "separator",
+        "margin": "lg"
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "margin": "lg",
+        "contents": [
+          {
+            "type": "text",
+            "text": "Current Price",
+            "size": "sm",
+            "color": "#aaaaaa",
+            "flex": 1
+          },
+          {
+            "type": "text",
+            "text": "current_price",
+            "size": "xxl",
+            "color": "#1DB446",
+            "weight": "bold",
+            "align": "end",
+            "flex": 2
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "type": "box",
+    "layout": "vertical",
+    "spacing": "sm",
+    "contents": [
+      {
+        "type": "button",
+        "action": {
+          "type": "postback",
+          "label": "Confirm Check",
+          "data": "action=add_stock&symbol=Stock_Name"
+        },
+        "style": "primary",
+        "height": "sm",
+        "color": "#1DB446"
+      },
+      {
+        "type": "button",
+        "action": {
+          "type": "postback",
+          "label": "Cancel",
+          "data": "action=cancel"
+        },
+        "style": "secondary",
+        "height": "sm",
+        "color": "#aaaaaa"
+      }
+    ]
+  }
+}

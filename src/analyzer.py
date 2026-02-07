@@ -1,7 +1,6 @@
-import yfinance as yf
 import pandas as pd
 from llm_service import LLMService
-import yfinance as yf
+import time
 
 class AnalysisEngine:
     def __init__(self):
@@ -9,128 +8,224 @@ class AnalysisEngine:
 
     def fetch_data(self, symbol):
         """
-        Original FullFetcher using yfinance.
-        Retrieves rich data: Price, PE, Yield, News, 1Y History, Technicals.
+        Smart Fetch: 
+        - If .BK -> Go straight to Settrade (Skip Finnhub latency)
+        - If US -> Try Finnhub -> Fallback Settrade? (No, Settrade only Thai) -> Fail
         """
-        try:
-            ticker = yf.Ticker(symbol)
-            
-            # 1. Fetch History (1 Year for robust Technicals)
-            hist = ticker.history(period='1y')
-            if hist.empty:
+        from thai_stock_helper import get_thai_stock_data as get_thai_quote
+        from global_stock_helper import get_quote, get_company_profile, get_market_news, get_candles_and_indicators
+
+        symbol = symbol.upper()
+        is_thai = symbol.endswith('.BK')
+        
+        # Data Containers
+        price = 0
+        pe = 0
+        yd = 0
+        market_cap = "N/A"
+        technicals = {"rsi": "N/A", "sma50": "N/A", "year_high": "-", "year_low": "-", "market_cap": "N/A"}
+        prices_list = []
+        news_items = []
+
+        # --- PATH 1: THAI STOCK (.BK) ---
+        if is_thai:
+            print(f"[ANALYZER] Thai Stock detected ({symbol}). Using Settrade directly.")
+            try:
+                thai_data = get_thai_quote(symbol)
+                if thai_data and thai_data.get('price', 0) > 0:
+                    price = thai_data['price']
+                    pe = thai_data.get('pe', 0)
+                    yd = thai_data.get('yield', 0)
+                    # Year Low/High
+                    technicals['year_high'] = f"{thai_data.get('high', 0):.2f}"
+                    technicals['year_low'] = f"{thai_data.get('low', 0):.2f}"
+                    # Market Cap (Estimate or N/A) -- Settrade doesn't give total shares easily in this endpoint
+                    if thai_data.get('val', 0) > 0:
+                         # Value / Vol approx Price? No, Value is turnover. 
+                         pass 
+
+                    # History & Technicals
+                    prices_list = thai_data.get('history', [])
+                    
+                    # Calculate Indicators (Pandas)
+                    if prices_list and len(prices_list) >= 14:
+                        try:
+                            # Convert to Series
+                            series = pd.Series(prices_list)
+                            
+                            # SMA 50
+                            if len(series) >= 50:
+                                sma50_val = series.rolling(window=50).mean().iloc[-1]
+                                technicals['sma50'] = f"{sma50_val:.2f}"
+                            
+                            # RSI 14
+                            delta = series.diff()
+                            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                            rs = gain / loss
+                            rsi_calc = 100 - (100 / (1 + rs))
+                            val_rsi = rsi_calc.iloc[-1]
+                            if not pd.isna(val_rsi):
+                                technicals['rsi'] = f"{val_rsi:.2f}"
+                        except Exception as e:
+                            print(f"[CALC ERROR] {e}")
+
+                else:
+                    print(f"[ANALYZER] Settrade returned no data for {symbol}")
+                    return None
+            except Exception as e:
+                print(f"[ANALYZER] Settrade Error: {e}")
                 return None
 
-            current_price = hist['Close'].iloc[-1]
-            prices_list = hist['Close'].tail(30).tolist() # Sparkline data (30 days)
-
-            # 2. Calculate Technicals (RSI, SMA)
-            technicals = {}
+        # --- PATH 2: US/GLOBAL STOCK (No .BK) ---
+        else:
             try:
-                # SMA 50
-                if len(hist) >= 50:
-                    technicals['sma50'] = f"{hist['Close'].rolling(window=50).mean().iloc[-1]:.2f}"
+                # 1. Quote (Price) - Twelve Data
+                quote = get_quote(symbol)
+                if quote and quote.get('c', 0) > 0:
+                    price = quote['c']
+                    
+                    # 2. Profile (PE, Cap, Yield) - Finnhub
+                    # Note: Finnhub 'profile2' is free and lightweight.
+                    try:
+                        profile = get_company_profile(symbol) or {}
+                        pe = profile.get('pe', 0)
+                        cap = profile.get('marketCapitalization', 0)
+                        market_cap = f"{cap:,.2f} M" if cap else "N/A"
+                        yd = profile.get('dividendYield', 0) 
+                        technicals['market_cap'] = market_cap
+                    except Exception as e: 
+                        print(f"[PROFILE ERROR] {e}")
+                    
+                    # 3. Candles & Technicals (History, RSI, SMA) - Twelve Data
+                    # Rate Limit Protection: 8 req/min = 1 req every 7.5s.
+                    # Since we already called quote (1 credit), candles cost another (1 credit). 
+                    # Total 2 credits per stock. 4 stocks per minute max if sequential.
+                    try:
+                        time.sleep(1) # Small delay to be polite
+                        tech_data = get_candles_and_indicators(symbol)
+                        if tech_data:
+                            prices_list = tech_data.get('history', [])
+                            technicals.update(tech_data.get('technicals', {}))
+                            # Re-assert market cap
+                            if market_cap != "N/A": technicals['market_cap'] = market_cap
+                    except Exception as e: 
+                        print(f"[TECH DATA ERROR] {e}")
+                    
+                    # 4. News - Finnhub
+                    try:
+                        raw_news = get_market_news(symbol)
+                        for n in raw_news:
+                            if 'headline' in n: news_items.append(n['headline'])
+                    except: pass
                 else:
-                    technicals['sma50'] = "N/A"
+                    print(f"[ANALYZER] No Quote Data for {symbol}")
+                    return None
 
-                # RSI 14
-                delta = hist['Close'].diff()
-                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-                rs = gain / loss
-                rsi = 100 - (100 / (1 + rs))
-                technicals['rsi'] = f"{rsi.iloc[-1]:.2f}"
-            except:
-                technicals['rsi'] = "N/A"
-                technicals['sma50'] = "N/A"
+            except Exception as e:
+                print(f"[ANALYZER] Global Stock Error: {e}")
+                return None
 
-            # 3. Fetch Info (Fundamental)
-            pe = 0
-            yd = 0
-            rec_key = 'none'
-            try:
-                info = ticker.info
-                pe = info.get('trailingPE') or info.get('forwardPE') or 0
-                yd = (info.get('dividendYield', 0) or 0) * 100
-                rec_key = info.get('recommendationKey', 'none')
-                
-                # Add Info Technicals
-                technicals['market_cap'] = f"{info.get('marketCap', 0):,}"
-                technicals['year_high'] = f"{info.get('fiftyTwoWeekHigh', 0):.2f}"
-                technicals['year_low'] = f"{info.get('fiftyTwoWeekLow', 0):.2f}"
-            except:
-                pass
-
-            # 4. News (Yahoo News)
-            news_items = []
-            try:
-                raw_news = ticker.news
-                if raw_news:
-                    for n in raw_news[:5]:
-                            title = n.get('title') or n.get('content', {}).get('title')
-                            if title: news_items.append(title)
-            except:
-                pass
-            
-            return {
-                "price": current_price,
-                "pe_ratio": pe,
-                "div_yield": yd,
-                "recommendation_key": rec_key,
-                "news": news_items,
-                "history": prices_list,
-                "technicals": technicals
-            }
-
-        except Exception as e:
-            print(f"Fetch Error {symbol}: {e}")
-            return None
-
-    def analyze(self, symbol, strategy="Value", goal="Medium", risk="Medium"):
-        data = self.fetch_data(symbol)
-        if not data:
-            return {
-                "symbol": symbol,
-                "metrics": {"Price": "N/A", "P/E": "-", "Yield": "-"},
-                "signal": "ERROR",
-                "reason": "ไม่สามารถดึงข้อมูลได้ (Data Unavailable)"
-            }
-
-        result = {
-            "symbol": symbol,
-            "metrics": {
-                "Price": f"{data['price']:,.2f}",
-                "P/E": f"{data['pe_ratio']:.2f}" if data['pe_ratio'] else "N/A",
-                "Yield": f"{data['div_yield']:.2f}%" if data['div_yield'] else "N/A",
-                "RSI": data['technicals']['rsi']
-            },
-            "history": data['history'],
-            "news": data['news'],
-            "technicals": data['technicals']
+        return {
+            "price": price,
+            "pe_ratio": pe,
+            "div_yield": yd, 
+            "news": news_items,
+            "history": prices_list,
+            "technicals": technicals
         }
 
-        # --- AI Analysis ---
+    def analyze(self, symbol, strategy="Value", goal="Medium", risk="Medium"):
         try:
-            news_summary = ""
-            if data['news']:
-                news_summary = self.llm.summarize_news(data['news'])
-                result['news_summary'] = news_summary
+            # Fetch Data
+            data = self.fetch_data(symbol)
             
-            ai_output = self.llm.analyze_stock_ai(
-                symbol, data['price'], data['pe_ratio'], data['div_yield'], 
-                news_summary, strategy=strategy, goal=goal, technicals=data['technicals']
-            )
-            
-            parts = ai_output.split('|')
-            if len(parts) >= 3:
-                result['signal'] = parts[1].strip()
-                result['reason'] = parts[2].strip()
-            else:
-                result['signal'] = "HOLD" 
-                result['reason'] = ai_output
-                
-        except Exception as e:
-            print(f"Analysis Error: {e}")
-            result['signal'] = "WAIT"
-            result['reason'] = "ระบบ AI ขัดข้อง"
+            if not data:
+                return {
+                    "symbol": symbol,
+                    "metrics": {"Price": "N/A", "P/E": "-", "Yield": "-"},
+                    "signal": "ERROR",
+                    "reason": "ไม่พบข้อมูลหุ้น (Data Unavailable) หรือระบบเชื่อมต่อขัดข้อง"
+                }
 
-        return result
+            # Prepare Result Dict
+            result = {
+                "symbol": symbol,
+                "metrics": {
+                    # Display Strings
+                    "Price": f"{data['price']:,.2f}",
+                    "P/E": f"{data['pe_ratio']:.2f}" if data['pe_ratio'] else "N/A",
+                    "Yield": f"{data['div_yield']:.2f}%" if data['div_yield'] else "N/A",
+                    "RSI": data['technicals'].get('rsi', 'N/A'),
+                    
+                    # Raw Values for Template (Fix Missing Data Issue)
+                    "price": data['price'],
+                    "pe_ratio": data['pe_ratio'] if data['pe_ratio'] and data['pe_ratio'] != 0 else None,
+                    "div_yield": data['div_yield'] if data['div_yield'] and data['div_yield'] != 0 else None,
+                    "market_cap": data['technicals'].get('market_cap') if data['technicals'].get('market_cap') != "N/A" else None,
+                    "technicals": data['technicals'] # Pass nested technicals
+                },
+                "history": data['history'],
+                "news": data['news'],
+                "technicals": data['technicals']
+            }
+            
+            # Flatten metrics to top-level for Template compatibility
+            result.update(result['metrics'])
+
+            # AI Analysis (Summarize News + Generate Signal)
+            news_summary = ""
+            if data.get('news'):
+                try:
+                    news_summary = self.llm.summarize_news(data['news'])
+                    result['news_summary'] = news_summary
+                except: news_summary = "-"
+            
+            # Generate Signal (Robust Parsing)
+            try:
+                ai_output = self.llm.analyze_stock_ai(
+                    symbol, data['price'], data['pe_ratio'], data['div_yield'], 
+                    news_summary, strategy=strategy, goal=goal, technicals=data['technicals']
+                )
+                
+                # Smart Parsing for Signal
+                valid_signals = ["BUY", "SELL", "HOLD", "WAIT"]
+                cleaned_output = ai_output.replace("Signal:", "").replace("Category:", "").strip()
+                parts = [p.strip() for p in cleaned_output.split('|')]
+                
+                found_signal = None
+                reason_text = "รอการวิเคราะห์เพิ่มเติม"
+                
+                # Strategy: Find signal word in parts
+                for i, part in enumerate(parts):
+                    upper_part = part.upper()
+                    for vs in valid_signals:
+                        if vs == upper_part or upper_part.startswith(vs):
+                            found_signal = vs
+                            if i + 1 < len(parts): reason_text = parts[i+1]
+                            break
+                    if found_signal: break
+                
+                # Fallback: Search full string
+                if not found_signal:
+                    upper_full = cleaned_output.upper()
+                    for vs in valid_signals:
+                        if vs in upper_full:
+                            found_signal = vs
+                            after_signal = cleaned_output.split(vs, 1)[-1]
+                            reason_text = after_signal.strip(" |:-")
+                            break
+                
+                result['signal'] = found_signal if found_signal else "WAIT"
+                result['reason'] = reason_text if reason_text and len(reason_text) > 5 else ai_output 
+                
+            except Exception as e:
+                print(f"[AI ERROR] {e}")
+                result['signal'] = "WAIT"
+                result['reason'] = "AI ประมวลผลขัดข้อง"
+
+            return result
+
+        except Exception as e:
+            print(f"[CRITICAL ANALYZE ERROR] {e}")
+            return None

@@ -5,7 +5,7 @@ from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage,
     PostbackEvent, FlexSendMessage
 )
-import yfinance as yf
+
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__))) # Fix ModuleNotFoundError in Docker
@@ -17,12 +17,21 @@ from line_templates import (
     get_global_setting_flex, get_specific_setting_flex,
     get_scheduler_flex, get_analysis_flex
 )
-import yfinance as yf
+
 from analyzer import AnalysisEngine
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
+app.config.from_object(Config)
 
+# --- DEBUG: Check File System on Cloud Run ---
+print(f"[DEBUG_INIT] BASE_DIR: {Config.BASE_DIR}")
+ux_dir = os.path.join(Config.BASE_DIR, 'line_ux')
+if os.path.exists(ux_dir):
+    print(f"[DEBUG_INIT] Found 'line_ux' with files: {os.listdir(ux_dir)}")
+else:
+    print(f"[DEBUG_INIT] CRITICAL: 'line_ux' directory NOT FOUND at {ux_dir}")
+# ---------------------------------------------
 # Initialize Line API
 line_bot_api = LineBotApi(Config.LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(Config.LINE_CHANNEL_SECRET)
@@ -39,6 +48,15 @@ def ensure_db_initialized():
         try:
             print("Lazy initializing database...")
             Base.metadata.create_all(bind=engine)
+            
+            # Also init GlobalStockInfo table
+            try:
+                from init_cache_db import Base as CacheBase
+            except ImportError:
+                from src.init_cache_db import Base as CacheBase
+            
+            CacheBase.metadata.create_all(bind=engine)
+            
             _db_initialized = True
             print("Database initialization successful.")
         except Exception as e:
@@ -64,26 +82,38 @@ def get_or_create_user(line_user_id):
         db.commit()
     return user, db
 
+from thai_stock_helper import get_thai_stock_data as get_thai_quote
+from global_stock_helper import get_quote as get_quote_finnhub
+
 def check_stock_exists(symbol):
     """
-    Original simple check using yfinance
+    Check stock existence: Try Finnhub First -> Fallback to Settrade (Thai)
     """
+    # 1. Try Finnhub (Fast & US Stocks)
     try:
-        t = yf.Ticker(symbol)
-        # Check by fetching minimal history
-        hist = t.history(period="5d")
-        if not hist.empty:
-            return symbol, hist['Close'].iloc[-1]
+        quote = get_quote_finnhub(symbol)
+        if quote and quote['c'] > 0:
+             return symbol, quote['c']
+    except Exception as e:
+        print(f"[Check Stock Finnhub Error] {e}")
+
+    # 2. Fallback to Settrade (Thai Stocks)
+    # Check .BK removed automatically inside helper, but logic is fine
+    print(f"[Check Stock] Falling back to Settrade for {symbol}")
+    try:
+        # Check original (e.g., PTT)
+        thai_data = get_thai_quote(symbol)
+        
+        # If successful, return PTT.BK (Standardize for DB)
+        # Note: Settrade returns raw price, let's trust it
+        if thai_data and thai_data.get('price', 0) > 0:
+            if not symbol.upper().endswith(".BK"):
+                 return symbol.upper() + ".BK", thai_data['price']
+            return symbol.upper(), thai_data['price']
             
-        # Try .BK
-        if not symbol.endswith(".BK"):
-             bk = symbol + ".BK"
-             t2 = yf.Ticker(bk)
-             hist2 = t2.history(period="5d")
-             if not hist2.empty:
-                 return bk, hist2['Close'].iloc[-1]
-    except:
-        pass
+    except Exception as e:
+        print(f"[Check Stock Settrade Error] {e}")
+        
     return None, None
 
 @handler.add(MessageEvent, message=TextMessage)
@@ -176,6 +206,11 @@ def handle_message(event):
 
 @handler.add(PostbackEvent)
 def handle_postback(event):
+    # Deduplication: Ignore LINE Redeliveries
+    if hasattr(event, 'delivery_context') and event.delivery_context.is_redelivery:
+        print(f"[SKIP] Redelivery Postback: {event.webhook_event_id}")
+        return
+
     data = event.postback.data
     user_id = event.source.user_id
     user, db = get_or_create_user(user_id)
@@ -195,18 +230,24 @@ def handle_postback(event):
 
     try:
         # --- Add Stock ---
-        if action == 'confirm_add' and symbol:
+        if action == 'add_stock':
+            # Check Limit (Max 10 for Carousel safety)
+            count = db.query(Watchlist).filter_by(user_id=user.id).count()
+            if count >= 10:
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="Limit reached (Max 10 stocks). Please remove some items."))
+                return
+
             exists = db.query(Watchlist).filter_by(user_id=user.id, symbol=symbol).first()
             if not exists:
                 wl = Watchlist(user_id=user.id, symbol=symbol)
                 db.add(wl)
                 db.commit()
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✓ บันทึก {symbol} แล้ว"))
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"Confirmed: {symbol} added."))
             else:
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"! {symbol} มีอยู่แล้ว"))
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"Info: {symbol} is already in watchlist."))
                 
-        elif action == 'cancel_add':
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="ยกเลิกรายการ"))
+        elif action == 'cancel_add' or action == 'cancel':
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="ยกเลิกรายการแล้ว"))
 
         # --- Delete Stock ---
         elif (action == 'delete_stock' or action == 'delete') and symbol:
@@ -214,7 +255,7 @@ def handle_postback(event):
             if item:
                 db.delete(item)
                 db.commit()
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"XXX ลบ {symbol} แล้ว"))
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"Removed: {symbol}"))
             else:
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text="ไม่พบรายการที่จะลบ"))
 
@@ -246,21 +287,22 @@ def handle_postback(event):
         elif 'global' in action and 'setting' not in action:
             parts = action.split('_')
             if len(parts) >= 3:
-                setting_type = parts[0]
-                val_key = parts[2]
+                # Ex: global_strategy_value
+                setting_group = parts[0] # global
+                setting_type = parts[1] # strategy
+                val_key = parts[2]      # value
+                
                 val_map = {
                     'dca': 'DCA', 'ai': 'AI-Auto', 'value': 'Value', 'growth': 'Growth', 
                     'dividend': 'Dividend', 'technical': 'Technical',
                     'short': 'Short', 'medium': 'Medium', 'long': 'Long',
-                    'low': 'Low', 'high': 'High',
-                    'summary': 'Summary', 'full': 'Full'
+                    'low': 'Low', 'high': 'High'
                 }
                 final_val = val_map.get(val_key, val_key.capitalize())
                 
                 if setting_type == 'strategy': user.core_strategy = final_val
                 elif setting_type == 'goal': user.investment_goal = final_val
                 elif setting_type == 'risk': user.risk_appetite = final_val
-                elif setting_type == 'report': user.report_format = final_val
                 
                 db.commit()
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✓ Global {setting_type.capitalize()} = {final_val}"))
@@ -268,14 +310,16 @@ def handle_postback(event):
         elif 'stock' in action and symbol:
             parts = action.split('_')
             if len(parts) >= 3:
-                setting_type = parts[0]
-                val_key = parts[2]
+                # Ex: stock_strategy_value
+                setting_group = parts[0] # stock
+                setting_type = parts[1] # strategy
+                val_key = parts[2]      # value
+                
                 val_map = {
-                     'dca': 'DCA', 'ai': 'AI-Auto', 'value': 'Value', 'growth': 'Growth', 
+                    'dca': 'DCA', 'ai': 'AI-Auto', 'value': 'Value', 'growth': 'Growth', 
                     'dividend': 'Dividend', 'technical': 'Technical',
                     'short': 'Short', 'medium': 'Medium', 'long': 'Long',
-                    'low': 'Low', 'high': 'High',
-                    'summary': 'Summary', 'full': 'Full'
+                    'low': 'Low', 'high': 'High'
                 }
                 final_val = val_map.get(val_key, val_key.capitalize())
                 
@@ -284,7 +328,6 @@ def handle_postback(event):
                     if setting_type == 'strategy': wl_item.strategy = final_val
                     elif setting_type == 'goal': wl_item.goal = final_val
                     elif setting_type == 'risk': wl_item.risk = final_val
-                    elif setting_type == 'report': wl_item.report_format = final_val
                     db.commit()
                     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✓ {symbol} {setting_type.capitalize()} = {final_val}"))
 
@@ -354,9 +397,29 @@ def handle_postback(event):
             if not items:
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text="ไม่มีหุ้นในรายการ"))
             else:
-                # 1. Immediate Reply (Using Token)
+                # 1. Immediate Reply (Using Token) with Time Estimation
                 try:
-                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="กำลังวิเคราะห์ข้อมูล กรุณารอสักครู่..."))
+                    # Calculate estimated time (conservative based on network latency)
+                    # Global stock: ~30s (Network slow, Finnhub/TwelveData timeouts observed)
+                    # Thai stock: ~15s (Login overhead)
+                    # Overhead: ~20s
+                    global_count = sum(1 for item in items if not item.symbol.upper().endswith('.BK'))
+                    thai_count = len(items) - global_count
+                    total_est_seconds = (global_count * 30) + (thai_count * 15) + 20
+
+                    time_str = ""
+                    if total_est_seconds >= 60:
+                        mins = (total_est_seconds + 59) // 60 # Ceil minutes
+                        time_str = f"ประมาณ {mins}-{mins+1} นาที" # Range for better expectation
+                    else:
+                        time_str = f"ประมาณ {total_est_seconds} วินาที"
+                    
+                    if global_count > 0:
+                         reply_msg = f"กำลังวิเคราะห์ข้อมูล (หุ้นต่างประเทศ {global_count} ตัว อาจใช้เวลา{time_str}) กรุณารอสักครู่..."
+                    else:
+                         reply_msg = f"กำลังวิเคราะห์ข้อมูล (ใช้เวลา{time_str}) กรุณารอสักครู่..."
+
+                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_msg))
                 except Exception:
                     pass 
 
@@ -367,11 +430,11 @@ def handle_postback(event):
                     # Here we pass objects that don't need persistent DB session or re-query safely
                     
                     report_bubbles = []
-                    from concurrent.futures import ThreadPoolExecutor, as_completed
+                    import time
                     
                     def process_item(item_data):
                         # Construct minimal item object or pass dict
-                        symbol, strategy, goal, risk, report_fmt = item_data
+                        symbol, strategy, goal, risk = item_data
                         try:
                             res = analyzer.analyze(symbol, strategy=strategy, goal=goal, risk=risk)
                             if res and 'signal' in res:
@@ -381,7 +444,7 @@ def handle_postback(event):
                                 details['technicals'] = res.get('technicals', {})
                                 if 'news_summary' in res: details['news_summary'] = res['news_summary']
                                 
-                                f_msg = get_analysis_flex(symbol, res['signal'], res['reason'], details, report_fmt)
+                                f_msg = get_analysis_flex(symbol, res['signal'], res['reason'], details)
                                 if f_msg and 'contents' in f_msg: return f_msg['contents']
                         except Exception as e:
                             print(f"Analyze error {symbol}: {e}")
@@ -391,17 +454,43 @@ def handle_postback(event):
                     snapshot_items = []
                     for item in items:
                         strat = item.strategy or user_settings['core_strategy'] or "General"
+                        print(f"[DEBUG STRATEGY] Symbol: {item.symbol} | Item Strat: '{item.strategy}' | Global Strat: '{user_settings.get('core_strategy')}' -> FINAL: '{strat}'")
                         goal = item.goal or user_settings['investment_goal'] or "Medium"
                         risk = item.risk or user_settings['risk_appetite'] or "Medium"
-                        fmt = item.report_format or user_settings['report_format'] or "Summary"
-                        snapshot_items.append((item.symbol, strat, goal, risk, fmt))
+                        snapshot_items.append((item.symbol, strat, goal, risk))
 
-                    max_workers = min(len(snapshot_items), 4)
-                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                        futures = [executor.submit(process_item, data) for data in snapshot_items]
-                        for future in as_completed(futures):
-                            bubble = future.result()
-                            if bubble: report_bubbles.append(bubble)
+                    reports_bubbles = []
+                    import time
+                    
+                    # 3. Smart Throttling Processing
+                    # Thai Stocks: Fast (No limit) -> Sleep 1s
+                    # Global Stocks: 8 req/min -> Target 15s cycle per stock
+                    
+                    total_items = len(snapshot_items)
+                    for idx, data in enumerate(snapshot_items):
+                        start_time = time.time()
+                        symbol = data[0]
+                        is_thai = symbol.upper().endswith('.BK')
+                        
+                        print(f"[Analyze Task] Processing {idx+1}/{total_items} ({symbol})...")
+                        
+                        # Call process_item (which calls analyzer.analyze)
+                        bubble = process_item(data)
+                        if bubble:
+                            report_bubbles.append(bubble)
+                        
+                        # Smart Delay Logic
+                        if idx < total_items - 1:
+                            elapsed = time.time() - start_time
+                            if is_thai:
+                                # Thai stocks are fast and no rate limit
+                                time.sleep(1) 
+                            else:
+                                # Global: Ensure at least 15s passed since start
+                                # This accounts for processing time (e.g. 8s process -> 7s sleep)
+                                wait_time = max(0, 15.0 - elapsed)
+                                print(f"[Rate Limit] Loop took {elapsed:.2f}s. Sleeping {wait_time:.2f}s...")
+                                time.sleep(wait_time)
                     
                     # 3. Push Result via Push Message
                     if report_bubbles:
@@ -427,8 +516,7 @@ def handle_postback(event):
                 user_settings = {
                     'core_strategy': user.core_strategy,
                     'investment_goal': user.investment_goal,
-                    'risk_appetite': user.risk_appetite,
-                    'report_format': user.report_format
+                    'risk_appetite': user.risk_appetite
                 }
                 
                 # Start Thread
@@ -460,4 +548,12 @@ def cron_trigger():
     return "Cron Job Completed", 200
 
 if __name__ == "__main__":
-    app.run(port=5000)
+    import os
+    from src.init_cache_db import init_db
+    try:
+        init_db()
+    except Exception as e:
+        print(f"[DB INIT ERROR] {e}")
+
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)

@@ -1,0 +1,35 @@
+{
+  "type": "bubble",
+  "direction": "ltr",
+  "header": {
+    "type": "box",
+    "layout": "vertical",
+    "backgroundColor": "#FFFFFF",
+    "contents": [
+      {
+        "type": "text",
+        "text": "WATCHLIST",
+        "weight": "bold",
+        "color": "#1DB446",
+        "size": "xs",
+        "align": "start"
+      },
+      {
+        "type": "text",
+        "text": "COUNT_STOCKS Stocks",
+        "weight": "bold",
+        "size": "3xl",
+        "color": "#000000",
+        "margin": "xs",
+        "align": "start"
+      }
+    ]
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+       {"type": "text", "text": "placeholder_for_replacement", "color": "#000000"}
+    ]
+  }
+}

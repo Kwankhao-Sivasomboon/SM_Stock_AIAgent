@@ -1,0 +1,129 @@
+{
+  "type": "bubble",
+  "hero": {
+    "type": "image",
+    "url": "https://developers-resource.landpress.line.me/fx/img/01_3_movie.png",
+    "size": "full",
+    "aspectRatio": "20:13",
+    "aspectMode": "cover",
+    "action": {
+      "type": "uri",
+      "uri": "https://line.me/"
+    }
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "spacing": "md",
+    "contents": [
+      {
+        "type": "text",
+        "text": "Product Name",
+        "wrap": true,
+        "weight": "bold",
+        "gravity": "center",
+        "size": "xl"
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "lg",
+        "spacing": "sm",
+        "contents": [
+          {
+            "type": "box",
+            "layout": "baseline",
+            "spacing": "sm",
+            "contents": [
+              {
+                "type": "text",
+                "text": "Describe",
+                "color": "#aaaaaa",
+                "size": "sm",
+                "flex": 2
+              },
+              {
+                "type": "text",
+                "text": "describtion",
+                "wrap": true,
+                "size": "sm",
+                "color": "#666666",
+                "flex": 4
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "layout": "baseline",
+            "spacing": "sm",
+            "contents": [
+              {
+                "type": "text",
+                "text": "Type",
+                "color": "#aaaaaa",
+                "size": "sm",
+                "flex": 1
+              },
+              {
+                "type": "text",
+                "text": "business_type",
+                "wrap": true,
+                "color": "#666666",
+                "size": "sm",
+                "flex": 4
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "layout": "baseline",
+            "spacing": "sm",
+            "contents": [
+              {
+                "type": "text",
+                "text": "User",
+                "color": "#aaaaaa",
+                "size": "sm",
+                "flex": 1
+              },
+              {
+                "type": "text",
+                "text": "current_users",
+                "wrap": true,
+                "color": "#666666",
+                "size": "sm",
+                "flex": 4
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "xxl",
+        "contents": [
+          {
+            "type": "image",
+            "url": "https://developers-resource.landpress.line.me/fx/img/linecorp_code_withborder.png",
+            "aspectMode": "cover",
+            "size": "xl",
+            "margin": "md",
+            "position": "relative"
+          },
+          {
+            "type": "button",
+            "action": {
+              "type": "postback",
+              "label": "Add Friend",
+              "data": "action=add_friend&symbol=product_name",
+              "displayText": "เพิ่มเพื่อน \"product_name'"
+            },
+            "style": "primary",
+            "position": "relative"
+          }
+        ]
+      }
+    ]
+  }
+}

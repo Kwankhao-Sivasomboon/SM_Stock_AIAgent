@@ -1,0 +1,233 @@
+{
+    "type": "carousel",
+    "contents": [
+        {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "backgroundColor": "#33b5e5",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "Global Settings",
+                        "weight": "bold",
+                        "color": "#ffffff",
+                        "size": "md"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Strategy",
+                        "color": "#ffffff",
+                        "size": "3xl",
+                        "weight": "bold",
+                        "margin": "xs"
+                    }
+                ]
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "DCA",
+                            "data": "action=global_strategy_dca"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Value",
+                            "data": "action=global_strategy_value"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Growth",
+                            "data": "action=global_strategy_growth"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Dividend",
+                            "data": "action=global_strategy_dividend"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Technical",
+                            "data": "action=global_strategy_technical"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "AI-Auto",
+                            "data": "action=global_strategy_ai"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "backgroundColor": "#ff8800",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "Global Settings",
+                        "color": "#ffffff",
+                        "weight": "bold",
+                        "size": "md"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Goal",
+                        "color": "#ffffff",
+                        "size": "3xl",
+                        "weight": "bold",
+                        "margin": "xs"
+                    }
+                ]
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Short Term",
+                            "data": "action=global_goal_short"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Medium Term",
+                            "data": "action=global_goal_medium"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Long Term",
+                            "data": "action=global_goal_long"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "backgroundColor": "#cc0000",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "Global Settings",
+                        "color": "#ffffff",
+                        "weight": "bold",
+                        "size": "md"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Risk",
+                        "color": "#ffffff",
+                        "size": "3xl",
+                        "weight": "bold",
+                        "margin": "xs"
+                    }
+                ]
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Low",
+                            "data": "action=global_risk_low"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Medium",
+                            "data": "action=global_risk_medium"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "High",
+                            "data": "action=global_risk_high"
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}

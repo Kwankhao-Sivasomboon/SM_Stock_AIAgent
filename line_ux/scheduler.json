@@ -1,0 +1,65 @@
+{
+  "type": "bubble",
+  "header": {
+    "type": "box",
+    "layout": "vertical",
+    "backgroundColor": "#1DB446",
+    "contents": [
+      {
+        "type": "text",
+        "text": "NOTIFICATION",
+        "color": "#ffffff",
+        "weight": "bold",
+        "size": "sm"
+      },
+      {
+        "type": "text",
+        "text": "Scheduler",
+        "weight": "bold",
+        "size": "xxl",
+        "color": "#ffffff",
+        "margin": "xs"
+      }
+    ]
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "Set time for daily report.",
+        "wrap": true,
+        "color": "#aaaaaa"
+      },
+      {
+        "type": "separator",
+        "margin": "lg"
+      },
+      {
+        "type": "button",
+        "style": "secondary",
+        "height": "sm",
+        "margin": "lg",
+        "action": {
+          "type": "datetimepicker",
+          "label": "Select Time",
+          "data": "action=time_set",
+          "mode": "time"
+        }
+      },
+      {
+        "type": "button",
+        "style": "link",
+        "height": "sm",
+        "margin": "sm",
+        "color": "#33b5e5",
+        "action": {
+          "type": "postback",
+          "label": "Turn Off / Reset",
+          "data": "action=reset_time"
+        }
+      }
+    ]
+  }
+}

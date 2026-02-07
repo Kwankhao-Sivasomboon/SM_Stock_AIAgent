@@ -1,33 +1,55 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Get the base directory of the project
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
-# Load environment variables from the project root
+# Use Pathlib for robustness (Cross-platform & Cloud Run Safe)
+BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 class Config:
-    BASE_DIR = BASE_DIR
-    # Database (Ensure app.db is in the project root)
-    DB_PATH = os.path.join(BASE_DIR, 'app.db')
-    database_url = os.getenv('DATABASE_URL')
-    if database_url:
-        # Fix for Supabase (just handle postgres->postgresql alias if needed, but don't force driver)
-        if database_url.startswith("postgres://"):
-            database_url = database_url.replace("postgres://", "postgresql://", 1)
+    # Point to Project Root
+    BASE_DIR = str(BASE_DIR)
     
-    SQLALCHEMY_DATABASE_URI = database_url or f'sqlite:///{DB_PATH}'
+    # Database
+    DATABASE_URL = os.getenv('DATABASE_URL')
+    
+    # Cloud Run (Postgres) vs Local (SQLite) Logic
+    if DATABASE_URL and 'postgres' in DATABASE_URL:
+        # Fix for SQLAlchemy requiring 'postgresql://' instead of 'postgres://'
+        if DATABASE_URL.startswith("postgres://"):
+            DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+pg8000://", 1)
+        elif not DATABASE_URL.startswith("postgresql+pg8000://"):
+             # Ensure driver is present if not specified
+             DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+pg8000://", 1)
+    else:
+        # Fallback to Local SQLite
+        db_path = os.path.join(BASE_DIR, 'app.db')
+        DATABASE_URL = f"sqlite:///{db_path}"
+        print(f"[CONFIG] Warning: DATABASE_URL not found. Using Local SQLite: {DATABASE_URL}")
+
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    print(f"[CONFIG] DB Configured: {SQLALCHEMY_DATABASE_URI.split('@')[-1]}")
 
     # Line API
     LINE_CHANNEL_ACCESS_TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', 'YOUR_ACCESS_TOKEN')
     LINE_CHANNEL_SECRET = os.getenv('LINE_CHANNEL_SECRET', 'YOUR_CHANNEL_SECRET')
 
+    # Finnhub API
+    FINNHUB_API_KEY = os.getenv('FINNHUB_API_KEY')
+    TWELVE_DATA_API_KEY = os.getenv("TWELVE_DATA_API_KEY")
+
+    # Settrade Open API (Thai Stocks)
+    SETTRADE_APP_ID = os.getenv('SETTRADE_APP_ID')
+    SETTRADE_APP_SECRET = os.getenv('SETTRADE_APP_SECRET')
+    SETTRADE_BROKER_ID = os.getenv('SETTRADE_BROKER_ID', 'SANDBOX')
+    SETTRADE_APP_CODE = os.getenv('SETTRADE_APP_CODE', 'SANDBOX')
+    SETTRADE_IS_SANDBOX = os.getenv('SETTRADE_IS_SANDBOX', 'true').lower() == 'true'
+
     # LLM Settings
-    # LLM Settings (Primary: Google Gemini)
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
-    GEMINI_MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'gemini-3-flash')
+    GEMINI_MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
 
     # App Settings
     SCHEDULER_TIMEZONE = 'Asia/Bangkok'

@@ -1,47 +1,59 @@
 from config import Config
+import logging
 
-# New Google GenAI SDK (v2026 Compatible)
 try:
-    from google import genai
+    import google.generativeai as genai
 except ImportError:
     genai = None
-    print("Warning: 'google-genai' package not found. Please install via: pip install google-genai")
+    print("Warning: 'google-generativeai' package not found. Please install via: pip install google-generativeai")
 
 class LLMService:
     def __init__(self):
         self.client = None
         self.model_name = Config.GEMINI_MODEL_NAME
         
-        # Initialize Client
+        # Initialize Client (Old SDK Style)
         if Config.GEMINI_API_KEY:
              if genai:
                  try:
-                     self.client = genai.Client(api_key=Config.GEMINI_API_KEY)
+                     genai.configure(api_key=Config.GEMINI_API_KEY)
+                     self.model = genai.GenerativeModel(self.model_name)
+                     print(f"[LLM] Initialized Gemini Model: {self.model_name}")
                  except Exception as e:
-                     print(f"GenAI Client Init Error: {e}")
+                     print(f"[LLMINIT ERROR] {e}")
              else:
-                 print("Warning: google-genai library is missing.")
+                 print("Warning: google-generativeai library is missing.")
         else:
             print("Warning: GEMINI_API_KEY not found in environment.")
 
     def _call_gemini(self, prompt):
-        if not self.client:
+        if not self.model:
             return "AI Service Not Configured."
         try:
-            # New API Call Structure
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
-            return response.text.strip()
+            # Old SDK Call Structure
+            response = self.model.generate_content(prompt)
+            if response and response.text:
+                return response.text.strip()
+            return "No response from AI."
         except Exception as e:
             return f"AI Connection Error: {str(e)}"
 
     def analyze_stock_ai(self, symbol, price, pe_ratio, div_yield, news_summary, strategy="General", goal="Medium", technicals=None):
         """
-        Uses Gemini (via google.genai) to analyze stock based on comprehensive financial data.
+        Uses Gemini (via google.generativeai) to analyze stock based on comprehensive financial data.
         """
         
+        # Robust Missing Data Handling
+        pe_str = str(pe_ratio)
+        dy_str = str(div_yield)
+        missing_note = ""
+        if pe_str == "0" or pe_str == "N/A" or pe_str == "None" or not pe_ratio:
+            pe_str = "N/A (Ignore P/E)"
+            missing_note += " P/E is missing."
+        if dy_str == "0" or dy_str == "N/A" or dy_str == "None" or not div_yield:
+            dy_str = "N/A (Ignore Yield)"
+            missing_note += " Yield is missing."
+
         # Build Technical Context
         tech_context = ""
         if technicals:
@@ -54,17 +66,17 @@ class LLMService:
             )
 
         prompt = (
-            f"Analyze stock {symbol} for a user with Strategy='{strategy}' and Goal='{goal}'.\n"
-            f"Current Data: Price={price}, P/E={pe_ratio}, DivYield={div_yield}%\n"
+            f"Analyze stock {symbol} for Strategy: '{strategy}' (Goal: '{goal}').\n"
+            f"Financial Data: Price={price}, P/E={pe_str}, DivYield={dy_str}%\n"
             f"{tech_context}"
-            f"News Summary: {news_summary}\n\n"
-            "Task: Act as a financial analyst. Determine the Recommendation (BUY/SELL/HOLD/WAIT).\n"
-            "Rules:\n"
-            "1. Consider the User's Strategy and Goal in your decision.\n"
-            "2. Reason MUST be a single short sentence in Thai language.\n"
-            "3. Output a SINGLE LINE in this exact format:\n"
-            "Category | Recommendation | Reason\n"
-            "Example: Value | BUY | ราคาต่ำกว่ามูลค่าพื้นฐานและปันผลน่าสนใจเหมาะกับการถือยาว"
+            f"News Context: {news_summary}\n\n"
+            "Task: Provide a Buy/Sell/Hold recommendation.\n"
+            "CRITICAL RULES:\n"
+            f"1. STRICTLY follow the User Strategy '{strategy}'.\n"
+            f"2. If P/E or Yield is N/A/0, DO NOT mention them in reason. Focus on Price Trend/Technicals/News.{missing_note}\n"
+            "3. Output format MUST be exactly: Category | Signal | Reason (Thai)\n"
+            "4. Reason must be short, concise, in Thai (Max 1 sentence).\n"
+            "Example: Value | WAIT | ข้อมูลพื้นฐานไม่ครบถ้วน รอสัญญาณทางเทคนิคชัดเจนกว่านี้"
         )
         
         return self._call_gemini(prompt)
@@ -77,8 +89,11 @@ class LLMService:
         combined_news = "\n- ".join(news_list[:3])
         
         prompt = (
-            f"Summarize these stock news headlines into one short Thai paragraph (2-3 lines max).\n"
+            f"Summarize these stock news headlines into a concise Thai paragraph.\n"
             f"Headlines:\n{combined_news}\n\n"
+            f"Requirements:\n"
+            f"1. Translate and summarize the key points into Thai language ONLY.\n"
+            f"2. Keep it informative but concise.\n"
             f"Thai Summary:"
         )
         

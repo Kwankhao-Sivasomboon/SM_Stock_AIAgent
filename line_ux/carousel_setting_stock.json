@@ -1,0 +1,233 @@
+{
+    "type": "carousel",
+    "contents": [
+        {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "backgroundColor": "#33b5e5",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "Stock_Name",
+                        "weight": "bold",
+                        "color": "#ffffff",
+                        "size": "md"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Strategy",
+                        "color": "#ffffff",
+                        "size": "3xl",
+                        "weight": "bold",
+                        "margin": "xs"
+                    }
+                ]
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "DCA",
+                            "data": "action=stock_strategy_dca&symbol=Stock_Name"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Value",
+                            "data": "action=stock_strategy_value&symbol=Stock_Name"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Growth",
+                            "data": "action=stock_strategy_growth&symbol=Stock_Name"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Dividend",
+                            "data": "action=stock_strategy_dividend&symbol=Stock_Name"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Technical",
+                            "data": "action=stock_strategy_technical&symbol=Stock_Name"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "AI-Auto",
+                            "data": "action=stock_strategy_ai&symbol=Stock_Name"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "backgroundColor": "#ff8800",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "Stock_Name",
+                        "color": "#ffffff",
+                        "weight": "bold",
+                        "size": "md"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Goal",
+                        "color": "#ffffff",
+                        "size": "3xl",
+                        "weight": "bold",
+                        "margin": "xs"
+                    }
+                ]
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Short Term",
+                            "data": "action=stock_goal_short&symbol=Stock_Name"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Medium Term",
+                            "data": "action=stock_goal_medium&symbol=Stock_Name"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Long Term",
+                            "data": "action=stock_goal_long&symbol=Stock_Name"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "bubble",
+            "header": {
+                "type": "box",
+                "layout": "vertical",
+                "backgroundColor": "#cc0000",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "Stock_Name",
+                        "color": "#ffffff",
+                        "weight": "bold",
+                        "size": "md"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Risk",
+                        "color": "#ffffff",
+                        "size": "3xl",
+                        "weight": "bold",
+                        "margin": "xs"
+                    }
+                ]
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Low",
+                            "data": "action=stock_risk_low&symbol=Stock_Name"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "Medium",
+                            "data": "action=stock_risk_medium&symbol=Stock_Name"
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": "#F0F2F5",
+                        "action": {
+                            "type": "postback",
+                            "label": "High",
+                            "data": "action=stock_risk_high&symbol=Stock_Name"
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}

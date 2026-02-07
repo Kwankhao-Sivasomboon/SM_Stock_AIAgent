@@ -3,287 +3,285 @@ import os
 import urllib.parse
 from config import Config
 
-# Helper to load JSON safely
-TEMPLATE_DIR = os.path.join(Config.BASE_DIR, 'line_ux')
+# Robust Path Detection for line_ux
+# Standard Path using Config
+try:
+    TEMPLATE_DIR = os.path.join(Config.BASE_DIR, 'line_ux')
+except:
+    TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'line_ux')
+
+if not os.path.exists(TEMPLATE_DIR):
+    print(f"[TEMPLATE SYSTEM] CRITICAL: line_ux NOT FOUND at {TEMPLATE_DIR}")
+else:
+    print(f"[TEMPLATE SYSTEM] Found line_ux at: {TEMPLATE_DIR}")
 
 def load_template(filename):
+    if not TEMPLATE_DIR:
+        print("[TEMPLATE ERROR] Template directory not initialized.")
+        return None
     path = os.path.join(TEMPLATE_DIR, filename)
     if not os.path.exists(path):
+        print(f"[TEMPLATE ERROR] File not found: {path} (Checked in {TEMPLATE_DIR})") 
         return None
     try:
         with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except:
+            data = json.load(f)
+            # print(f"[TEMPLATE SUCCESS] Loaded {filename} keys: {list(data.keys()) if isinstance(data, dict) else 'List'}")
+            return data
+    except json.JSONDecodeError as e:
+        print(f"[TEMPLATE JSON ERROR] {filename}: {e}") 
+        return None
+    except Exception as e:
+        print(f"[TEMPLATE LOAD ERROR] {filename}: {e}")
         return None
 
 def _replace_recursive(obj, replacements):
+    """
+    Recursively replace string values. Supports matches for 'KEY' and '${KEY}'.
+    """
     if isinstance(obj, dict):
         return {k: _replace_recursive(v, replacements) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [_replace_recursive(i, replacements) for i in obj]
     elif isinstance(obj, str):
+        # Scan for keys in replacements
+        new_str = obj
         for key, val in replacements.items():
-            obj = obj.replace(key, str(val))
-        return obj
+            s_val = str(val)
+            # Try Direct Match
+            if key in new_str:
+                new_str = new_str.replace(key, s_val)
+            # Try ${KEY} Match
+            place_key = f"${{{key}}}"
+            if place_key in new_str:
+                new_str = new_str.replace(place_key, s_val)
+        return new_str
     return obj
 
 def get_add_stock_confirm_flex(symbol, company_name, price):
-    # Safe Price Format
     price_fmt = "N/A"
     try:
-        if price:
-            val = float(price)
-            price_fmt = f"{val:,.2f}"
+        val = float(price)
+        price_fmt = f"{val:,.2f}"
     except:
         price_fmt = str(price)
 
-    try:
-        template = load_template("add.json")
-        if template:
-            replacements = {
-                "Stock_Name": str(symbol),
-                "company_name": str(company_name or symbol),
-                "current_price": price_fmt
-            }
-            bubble = _replace_recursive(template, replacements)
-            return {"type": "flex", "altText": f"Confirm {symbol}", "contents": bubble}
-    except Exception as e:
-        print(f"[TEMPLATE ERROR] {e}")
-
-    # Fallback Hardcoded Bubble (Safety Net)
-    return {
-      "type": "flex",
-      "altText": f"Confirm {symbol}",
-      "contents": {
-        "type": "bubble",
-        "body": {
-          "type": "box",
-          "layout": "vertical",
-          "contents": [
-            {"type": "text", "text": "CONFIRM ADD", "weight": "bold", "color": "#1DB446", "size": "xs"},
-            {"type": "text", "text": str(symbol), "weight": "bold", "size": "xl", "margin": "md"},
-            {"type": "text", "text": f"Price: {price_fmt}", "size": "md", "color": "#555555", "margin": "sm"},
-            {"type": "separator", "margin": "lg"},
-            {"type": "box", "layout": "horizontal", "margin": "md", "spacing": "md", "contents": [
-                {
-                    "type": "button", "style": "primary", "height": "sm", "color": "#1DB446",
-                    "action": {"type": "postback", "label": "YES", "data": f"action=confirm_add&symbol={symbol}"}
-                },
-                {
-                    "type": "button", "style": "secondary", "height": "sm", "color": "#aaaaaa",
-                    "action": {"type": "postback", "label": "NO", "data": "action=cancel"}
-                }
-            ]}
-          ]
+    template = load_template("add.json")
+    if template:
+        img_url = "https://cdn-icons-png.flaticon.com/512/217/217853.png" #Fallback
+        replacements = {
+            "Stock_Name": str(symbol),
+            "company_name": str(company_name or symbol),
+            "current_price": price_fmt,
+            "img_url": img_url
         }
-      }
-    }
+        bubble = _replace_recursive(template, replacements)
+        return {"type": "flex", "altText": f"Confirm Add {symbol}", "contents": bubble}
+    
+    # Critical Fallback Only (Should not happen if JSON exists)
+    return None
 
 def get_watchlist_carousel(stocks):
-    try:
-        base_bubble = load_template("watch_list.json")
-        if base_bubble:
-            bubbles = []
-            for stock in stocks:
-                symbol = stock.symbol
-                company = getattr(stock, 'company_name', symbol) or symbol
-                replacements = {"Stock_Name": str(symbol), "stock_name": str(symbol), "company_name": str(company)}
-                bubbles.append(_replace_recursive(base_bubble, replacements))
-            if bubbles:
-                 return {"type": "flex", "altText": "Watchlist", "contents": {"type": "carousel", "contents": bubbles}}
-    except Exception as e:
-        print(f"[TEMPLATE ERROR Watchlist] {e}")
+    """
+    Constructs Watchlist using watch_list.json base and Python loop for rows.
+    Style: White Card, Grey Setting Button, Red Delete Button.
+    """
+    base_template = load_template("watch_list.json")
+    if not base_template: return None
 
-    # Fallback Carousel (Premium Design)
-    bubbles = []
+    list_items = []
     for stock in stocks:
-        sym = str(stock.symbol)
+        symbol = stock.symbol
+        company = getattr(stock, 'company_name', symbol) or symbol
         
-        # Determine color based on index (Just for variety or fixed)
-        header_color = "#0D47A1" # Deep Blue
+        # Row Item (Constructed in Code)
+        row = {
+            "type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm",
+            "contents": [
+                # Symbol Title
+                {
+                    "type": "text", "text": str(symbol), "size": "xl", "weight": "bold", "color": "#000000"
+                },
+                # Company Name (Small Grey)
+                {
+                    "type": "text", "text": str(company), "size": "xs", "color": "#aaaaaa", "margin": "none"
+                },
+                # Buttons
+                {
+                    "type": "button", "action": {"type": "postback", "label": "⚙ Specific Setting", "data": f"action=settings&symbol={symbol}"}, 
+                    "style": "secondary", "height": "sm", "color": "#F0F2F5", "margin": "md"
+                },
+                {
+                    "type": "button", "action": {"type": "postback", "label": "Delete", "data": f"action=delete&symbol={symbol}"}, 
+                    "style": "primary", "height": "sm", "color": "#ff4444", "margin": "sm"
+                },
+                {"type": "separator", "margin": "lg"}
+            ]
+        }
+        list_items.append(row)
+
+    # Pagination Logic
+    MAX_ITEMS = 5 # Fewer items per bubble because rows are tall
+    chunks = [list_items[i:i + MAX_ITEMS] for i in range(0, len(list_items), MAX_ITEMS)]
+    
+    bubbles = []
+    for chunk in chunks:
+        # Remove separator from last item in chunk
+        if chunk and chunk[-1]['contents'][-1]['type'] == 'separator':
+             chunk[-1]['contents'].pop()
+
+        import copy
+        bubble = copy.deepcopy(base_template)
         
-        bubbles.append({
-            "type": "bubble",
-            "size": "micro",
-            "header": {
-                "type": "box", "layout": "vertical", "backgroundColor": header_color, "paddingAll": "10px",
-                "contents": [
-                    {"type": "text", "text": sym, "color": "#ffffff", "weight": "bold", "size": "xl"},
-                    {"type": "text", "text": "WATCHLIST", "color": "#eeeeee", "size": "xxs"}
-                ]
-            },
-            "body": {
-                "type": "box", "layout": "vertical", "paddingAll": "10px",
-                "contents": [
-                    {
-                        "type": "box", "layout": "vertical", "spacing": "sm",
-                        "contents": [
-                            {"type": "button", "style": "primary", "height": "sm", "color": "#1DB446",
-                             "action": {"type": "message", "label": "📈 Analyze", "text": f"Analyze {sym}"}},
-                            {"type": "button", "style": "secondary", "height": "sm", "color": "#aaaaaa",
-                             "action": {"type": "postback", "label": "⚙️ Settings", "data": f"action=settings&symbol={sym}"}},
-                            {"type": "separator", "margin": "sm"},
-                            {"type": "button", "style": "link", "height": "sm", "color": "#ff4444",
-                             "action": {"type": "postback", "label": "❌ Remove", "data": f"action=delete&symbol={sym}"}}
-                        ]
-                    }
-                ]
-            }
-        })
-    return {"type": "flex", "altText": "Watchlist", "contents": {"type": "carousel", "contents": bubbles}}
+        # Replace Count Header
+        if "header" in bubble and "contents" in bubble["header"]:
+             for item in bubble["header"]["contents"]:
+                 if "text" in item and "COUNT_STOCKS" in item["text"]:
+                     item["text"] = item["text"].replace("COUNT_STOCKS", str(len(stocks)))
+
+        # Inject Rows into Body
+        if "body" in bubble:
+            bubble["body"]["contents"] = chunk
+            
+        bubbles.append(bubble)
+
+    if not bubbles: return None
+        
+    if len(bubbles) == 1:
+        return {"type": "flex", "altText": "My Watchlist", "contents": bubbles[0]}
+    else:
+        return {"type": "flex", "altText": "My Watchlist", "contents": {"type": "carousel", "contents": bubbles}}
 
 def get_global_setting_flex():
-    try:
-        template = load_template("carousel_setting_global.json")
-        if template: return {"type": "flex", "altText": "Global Settings", "contents": template}
-    except: pass
-    
-    # Fallback
-    return {"type": "text", "text": "Global Settings Template Error. Please use menu."}
+    template = load_template("carousel_setting_global.json")
+    if template:
+        return {"type": "flex", "altText": "Global Settings", "contents": template}
+    return None
 
 def get_specific_setting_flex(symbol):
-    try:
-        template = load_template("carousel_setting_stock.json")
-        if template:
-            replacements = {"stock_name": str(symbol), "Stock_Name": str(symbol)}
-            return {"type": "flex", "altText": f"Settings {symbol}", "contents": _replace_recursive(template, replacements)}
-    except Exception as e:
-        print(f"[TEMPLATE ERROR Settings] {e}")
-
-    # Fallback
-    return {
-        "type": "flex", "altText": f"Settings {symbol}",
-        "contents": {
-            "type": "bubble",
-            "body": {
-                "type": "box", "layout": "vertical",
-                "contents": [
-                    {"type": "text", "text": f"SETTINGS: {symbol}", "weight": "bold", "size": "lg"},
-                    {"type": "separator", "margin": "md"},
-                    {"type": "text", "text": "Adjust your preferences below", "size": "xs", "color": "#aaaaaa", "margin": "sm"},
-                    {"type": "button", "style": "secondary", "height": "sm", "margin": "md",
-                     "action": {"type": "postback", "label": "Toggle RSI Check", "data": f"action=toggle_rsi&symbol={symbol}"}},
-                     {"type": "button", "style": "secondary", "height": "sm", "margin": "sm",
-                     "action": {"type": "postback", "label": "Custom Alert", "data": f"action=set_alert&symbol={symbol}"}}
-                ]
-            }
-        }
-    }
+    template = load_template("carousel_setting_stock.json")
+    if template:
+        replacements = {"stock_name": str(symbol), "Stock_Name": str(symbol)}
+        return {"type": "flex", "altText": f"Settings {symbol}", "contents": _replace_recursive(template, replacements)}
+    return None
 
 def get_scheduler_flex():
     template = load_template("scheduler.json")
-    if not template: return None
-    return {"type": "flex", "altText": "Schedule", "contents": template}
+    if template:
+        return {"type": "flex", "altText": "Scheduler", "contents": template}
+    return None
 
-def get_analysis_flex(symbol, signal, recommendation, details, report_format="Summary"):
-    # Color Logic
-    color_map = {"BUY": "#00C851", "SELL": "#ff4444", "HOLD": "#ffbb33", "WAIT": "#33b5e5", "ERROR": "#000000"}
-    header_color = color_map.get(signal, "#aaaaaa")
+def get_analysis_flex(symbol, signal, recommendation, details):
+
+    # Load JSON Template (Clean Code Approach)
+    template = load_template("analysis.json")
     
-    # Extract News logic
-    # Priority: news_summary (Thai AI) > news (Raw list)
-    news_text = ""
-    if isinstance(details, dict):
-        if details.get('news_summary'):
-            news_text = details['news_summary']
-        elif details.get('news'):
-            raw_news = details.get('news', [])
-            if raw_news and isinstance(raw_news, list):
-                 valid_news = [n for n in raw_news if n and "ไม่มีข่าว" not in n]
-                 if valid_news:
-                     news_text = ", ".join(valid_news[:3]) # Show top 3
+    # Color Map (Text Colors now, not background)
+    # BUY=Green, SELL=Red, WAIT=Blue (#33b5e5), HOLD=Yellow
+    color_map = {"BUY": "#1DB446", "SELL": "#ff4444", "HOLD": "#ffbb33", "WAIT": "#33b5e5", "ERROR": "#000000"}
+    signal_color = color_map.get(str(signal).upper(), "#000000")
+    
+    # Safe Data Extraction (Handle None or Missing)
+    def safe_get(key, fmt="{:.2f}"):
+        val = details.get(key)
+        if val is None or val == "" or val == "N/A": return "-"
+        try:
+            if isinstance(val, (int, float)):
+                return fmt.format(val)
+            return str(val)
+        except:
+            return str(val)
 
-    if not news_text:
+    price = safe_get("price", "{:,.2f}")
+    pe = safe_get("pe_ratio", "{:.2f}")
+    
+    yd_val = details.get("div_yield")
+    yd = f"{yd_val:.2f}%" if yd_val and isinstance(yd_val, (int, float)) and yd_val > 0 else "-"
+    
+    rsi = details.get("technicals", {}).get("rsi") or "-"
+    sma = details.get("technicals", {}).get("sma50") or "-"
+    
+    mkt_val = details.get("technicals", {}).get("market_cap")
+    mkt = str(mkt_val) if mkt_val and mkt_val != "N/A" else "-"
+    
+    yh = details.get("technicals", {}).get("year_high") or "-"
+    yl = details.get("technicals", {}).get("year_low") or "-"
+    
+    # Graph URL
+    hist = details.get('history', [])
+    chart_url = "" 
+    if hist and len(hist) > 1:
+        # Purple Line Chart
+        data_points = hist[-30:] # Last 30 points
+        chart_data = ",".join([str(round(p,2)) for p in data_points])
+        # QuickChart: purple line, no fill, minimal axes
+        chart_params = (
+            f"{{type:'sparkline',data:{{datasets:[{{data:[{chart_data}],"
+            f"borderColor:'#8854d0',backgroundColor:'rgba(136, 84, 208, 0.2)',fill:false,"
+            f"borderWidth:2}}]}},options:{{elements:{{point:{{radius:0}}}}}}}}"
+        )
+        chart_encoded = urllib.parse.quote(chart_params)
+        chart_url = f"https://quickchart.io/chart?c={chart_encoded}&w=300&h=100"
+ 
+    # News Text (Prioritize AI Summary in Thai)
+    news_sum = details.get('news_summary')
+    news_raw = details.get('news', [])
+    
+    if news_sum and news_sum != "-" and news_sum != "":
+        news_text = news_sum
+    elif news_raw and len(news_raw) > 0:
+        news_text = news_raw[0] # Fallback to raw English title
+    else:
         news_text = "ไม่มีข่าวสำคัญในช่วงนี้"
+    
+    # Truncate to avoid Flex Message limit error (Max ~100-150 chars for footer)
+    # Increased to 200 based on testing
+    if len(news_text) > 200: news_text = news_text[:197] + "..."
 
-    # 1. Header
-    header = {
-        "type": "box", "layout": "vertical",
-        "contents": [
-             {"type": "text", "text": "ANALYSIS REPORT", "weight": "bold", "color": "#1DB446", "size": "xxs"},
-             {"type": "text", "text": f"{symbol}", "weight": "bold", "size": "xl", "margin": "md"},
-             {"type": "text", "text": f"{signal}", "weight": "bold", "size": "xxl", "color": header_color, "margin": "md"}
-        ]
+    # Footer Link Logic
+    is_thai = ".BK" in str(symbol).upper()
+    link_uri = f"https://www.settrade.com/th/equities/quote/{str(symbol).replace('.BK','')}/overview" if is_thai else f"https://finance.yahoo.com/quote/{symbol}"
+
+    replacements = {
+        "STOCK_SYMBOL": str(symbol),
+        "SIGNAL_TEXT": str(signal),
+        "SIGNAL_COLOR": signal_color,
+        "RECOMMENDATION_TEXT": str(recommendation),
+        "CHART_URL": chart_url,
+        "VAL_PRICE": str(price),
+        "VAL_PE": str(pe),
+        "VAL_YIELD": str(yd),
+        "VAL_RSI": str(rsi),
+        "VAL_SMA": str(sma),
+        "VAL_MKT": str(mkt),
+        "VAL_YH": str(yh),
+        "VAL_YL": str(yl),
+        "NEWS_TEXT": str(news_text), 
+        "LINK_URI": link_uri
     }
-    
-    # 2. Body
-    body_contents = []
-    
-    # Main Recommendation (Reason)
-    body_contents.append({
-        "type": "text", "text": recommendation, "wrap": True, 
-        "color": "#333333", "size": "sm", "weight": "bold"
-    })
 
-    # Sparkline Graph (Trend) - ONLY SHOW IN FULL MODE
-    if report_format == "Full":
-        history_prices = details.get('history', []) if isinstance(details, dict) else []
-        if history_prices:
-            # Downsample for graph if too many points (keep last 30 for clear trend)
-            graph_data = history_prices[-30:] if len(history_prices) > 30 else history_prices
-            prices_str = ",".join([str(round(p, 2)) for p in graph_data])
-            
-            # QuickChart Sparkline
-            chart_config = f"{{type:'sparkline',data:{{datasets:[{{data:[{prices_str}],borderColor:'#8854d0',fill:false}}]}}}}"
-            encoded_chart = urllib.parse.quote(chart_config)
-            chart_url = f"https://quickchart.io/chart?c={encoded_chart}&w=300&h=100"
-            
-            body_contents.append({"type": "separator", "margin": "lg"})
-            body_contents.append({
-                 "type": "box", "layout": "vertical", "margin": "md",
-                 "contents": [
-                      {"type": "text", "text": "📈 30-Day Trend", "size": "xxs", "color": "#aaaaaa", "align": "center", "margin": "xs"},
-                      {"type": "image", "url": chart_url, "size": "full", "aspectRatio": "3:1", "aspectMode": "cover"}
-                 ]
-            })
+    if template:
+        payload = template
 
-    # Statistics & Technicals Section - ONLY SHOW IN FULL MODE
-    if report_format == "Full":
-        body_contents.append({"type": "separator", "margin": "lg"})
-        body_contents.append({"type": "text", "text": "📊 Key Statistics", "weight": "bold", "size": "sm", "margin": "md"})
-        
-        # Merge basic metrics and technicals
-        display_metrics = {}
-        
-        # 1. Basic Metrics
-        for k, v in details.items():
-            if k in ['Price', 'P/E', 'Yield']:
-                display_metrics[k] = v
-        
-        # 2. Technicals (if available)
-        technicals = details.get('technicals', {})
-        if technicals:
-            if 'rsi' in technicals: display_metrics['RSI (14)'] = technicals['rsi']
-            if 'sma50' in technicals: display_metrics['SMA (50)'] = technicals['sma50']
-            if 'market_cap' in technicals: display_metrics['Mkt Cap'] = technicals['market_cap']
-            if 'year_high' in technicals: display_metrics['52W High'] = technicals['year_high']
-            if 'year_low' in technicals: display_metrics['52W Low'] = technicals['year_low']
+    # Remove Hero (Model Graph Section in Body instead)
+    if "hero" in payload: del payload["hero"]
 
-        # Render Logic
-        for k, v in display_metrics.items():
-            if str(v) == "N/A" or not v: continue # Skip empty
-            body_contents.append({
-                "type": "box", "layout": "baseline", "margin": "sm",
-                "contents": [
-                    {"type": "text", "text": k, "flex": 3, "size": "xs", "color": "#aaaaaa"},
-                    {"type": "text", "text": str(v), "flex": 4, "size": "xs", "color": "#666666", "align": "end"}
-                ]
-            })
-
-    body = {"type": "box", "layout": "vertical", "contents": body_contents}
-    
-    # 3. Footer
-    clean_symbol = symbol.replace(".BK", "")
-    base_url = "https://www.set.or.th/th/market/product/stock/quote/" if ".BK" in symbol else "https://finance.yahoo.com/quote/"
-    final_uri = f"{base_url}{clean_symbol}"
-    if ".BK" in symbol: final_uri += "/price"
-
-    footer = {
-        "type": "box", "layout": "vertical",
-        "contents": [
-            {"type": "button", "style": "secondary", "height": "sm",
-             "action": {"type": "uri", "label": "See Realtime Data", "uri": final_uri}}
+    # Add Graph Section to Body (Separator -> Header -> Image -> Separator)
+    if chart_url and chart_url != "":
+        graph_section = [
+            {"type": "separator", "margin": "lg", "color": "#DDDDDD"},
+            {"type": "text", "text": "📈 30-Day Chart", "size": "xs", "weight": "bold", "color": "#888888", "margin": "sm", "align": "center"},
+            {"type": "image", "url": chart_url, "size": "full", "aspectRatio": "20:13", "aspectMode": "cover", "margin": "md"},
+            {"type": "separator", "margin": "lg", "color": "#DDDDDD"},
+            {"type": "box", "layout": "vertical", "contents": [], "height": "10px"} # Spacer
         ]
-    }
-    
-    return {"type": "flex", "altText": f"Analysis {symbol}", "contents": {"type": "bubble", "header": header, "body": body, "footer": footer}}
+        
+        if "body" in payload and "contents" in payload["body"]:
+             for item in reversed(graph_section):
+                 payload["body"]["contents"].insert(0, item)
+
+        # Final Recursive Replace and Return
+        final_content = _replace_recursive(payload, replacements)
+        return {"type": "flex", "altText": f"Analysis {symbol}", "contents": final_content}
+
+    return None
