@@ -10,12 +10,14 @@ class AnalysisEngine:
         """
         Smart Fetch: 
         - If .BK -> Go straight to Settrade (Skip Finnhub latency)
-        - If US -> Try Finnhub -> Fallback Settrade? (No, Settrade only Thai) -> Fail
+        - If US -> Try Twelve Data/Finnhub
         """
         from thai_stock_helper import get_thai_stock_data as get_thai_quote
         from global_stock_helper import get_quote, get_company_profile, get_market_news, get_candles_and_indicators
 
         symbol = symbol.upper()
+        # Clean symbol if user typed "PTT.BK "
+        symbol = symbol.strip()
         is_thai = symbol.endswith('.BK')
         
         # Data Containers
@@ -32,6 +34,7 @@ class AnalysisEngine:
             print(f"[ANALYZER] Thai Stock detected ({symbol}). Using Settrade directly.")
             try:
                 thai_data = get_thai_quote(symbol)
+                # Check for valid data
                 if thai_data and thai_data.get('price', 0) > 0:
                     price = thai_data['price']
                     pe = thai_data.get('pe', 0)
@@ -39,9 +42,8 @@ class AnalysisEngine:
                     # Year Low/High
                     technicals['year_high'] = f"{thai_data.get('high', 0):.2f}"
                     technicals['year_low'] = f"{thai_data.get('low', 0):.2f}"
-                    # Market Cap (Estimate or N/A) -- Settrade doesn't give total shares easily in this endpoint
+                    # Market Cap (Estimate or N/A)
                     if thai_data.get('val', 0) > 0:
-                         # Value / Vol approx Price? No, Value is turnover. 
                          pass 
 
                     # History & Technicals
@@ -86,7 +88,6 @@ class AnalysisEngine:
                     price = quote['c']
                     
                     # 2. Profile (PE, Cap, Yield) - Finnhub
-                    # Note: Finnhub 'profile2' is free and lightweight.
                     try:
                         profile = get_company_profile(symbol) or {}
                         pe = profile.get('pe', 0)
@@ -98,11 +99,9 @@ class AnalysisEngine:
                         print(f"[PROFILE ERROR] {e}")
                     
                     # 3. Candles & Technicals (History, RSI, SMA) - Twelve Data
-                    # Rate Limit Protection: 8 req/min = 1 req every 7.5s.
-                    # Since we already called quote (1 credit), candles cost another (1 credit). 
-                    # Total 2 credits per stock. 4 stocks per minute max if sequential.
                     try:
-                        time.sleep(1) # Small delay to be polite
+                        # Polite delay for rate limit
+                        time.sleep(1) 
                         tech_data = get_candles_and_indicators(symbol)
                         if tech_data:
                             prices_list = tech_data.get('history', [])
@@ -182,7 +181,6 @@ class AnalysisEngine:
             result.update(result['metrics'])
 
             # AI Analysis (One-Shot: Signal + Reason + News Summary)
-            # AI Analysis (One-Shot: Signal + Reason + News Summary)
             try:
                 ai_output = self.llm.analyze_stock_ai(
                     symbol, data['price'], data['pe_ratio'], data['div_yield'], 
@@ -220,6 +218,6 @@ class AnalysisEngine:
 
             return result
 
-    except Exception as e:
-        print(f"[CRITICAL ANALYZE ERROR] {e}")
-        return None
+        except Exception as e:
+            print(f"[CRITICAL ANALYZE ERROR] {e}")
+            return None

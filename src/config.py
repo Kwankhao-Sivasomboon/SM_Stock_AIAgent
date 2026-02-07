@@ -49,7 +49,7 @@ class Config:
 
     # LLM Settings
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
-    GEMINI_MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
+    GEMINI_MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'gemini-flash-latest')
 
     # App Settings
     SCHEDULER_TIMEZONE = 'Asia/Bangkok'

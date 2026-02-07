@@ -438,16 +438,31 @@ def handle_postback(event):
                         try:
                             res = analyzer.analyze(symbol, strategy=strategy, goal=goal, risk=risk)
                             if res and 'signal' in res:
+                                # Prepare details with type safety
                                 details = res.get('metrics', {}).copy()
-                                details['history'] = res.get('history', [])
-                                details['news'] = res.get('news', [])
-                                details['technicals'] = res.get('technicals', {})
-                                if 'news_summary' in res: details['news_summary'] = res['news_summary']
+                                details['history'] = res.get('history') or []
+                                details['news'] = res.get('news') or []
+                                details['technicals'] = res.get('technicals') or {}
+                                details['news_summary'] = res.get('news_summary', '-')
                                 
-                                f_msg = get_analysis_flex(symbol, res['signal'], res['reason'], details)
-                                if f_msg and 'contents' in f_msg: return f_msg['contents']
+                                try:
+                                    f_msg = get_analysis_flex(symbol, res['signal'], res['reason'], details)
+                                    if f_msg and 'contents' in f_msg: return f_msg['contents']
+                                except Exception as e_tmpl:
+                                    print(f"[TEMPLATE ERROR] {symbol}: {e_tmpl}")
+                                    # Fallback: Simple Error Bubble to prevent disappearing
+                                    return {
+                                        "type": "bubble",
+                                        "body": {
+                                            "type": "box", "layout": "vertical",
+                                            "contents": [
+                                                {"type": "text", "text": f"Error displaying {symbol}", "weight": "bold", "color": "#ff0000"},
+                                                {"type": "text", "text": str(e_tmpl), "wrap": True, "size": "xs"}
+                                            ]
+                                        }
+                                    }
                         except Exception as e:
-                            print(f"Analyze error {symbol}: {e}")
+                            print(f"[ANALYZE ERROR] {symbol}: {e}")
                         return None
 
                     # Prepare Snapshot Data (avoid detached instance errors)
