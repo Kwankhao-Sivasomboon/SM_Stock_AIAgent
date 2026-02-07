@@ -51,12 +51,6 @@ The system follows a modern **Event-Driven Analysis** flow:
 3.  **Background Processing**: A detached thread fetches data and calls Gemini AI.
 4.  **Delivery**: Results are pushed back to the user asynchronously.
 
-## Screenshots
-
-| Watchlist Carousel | AI Analysis Report | Settings Menu |
-|:------------------:|:------------------:|:-------------:|
-| ![Watchlist](https://via.placeholder.com/200x400?text=Watchlist) | ![Analysis](https://via.placeholder.com/200x400?text=Analysis) | ![Settings](https://via.placeholder.com/200x400?text=Settings) |
-
 ## Challenges & Solutions
 
 *   **Challenge**: LINE Webhook timeout (30s) when waiting for AI analysis.
