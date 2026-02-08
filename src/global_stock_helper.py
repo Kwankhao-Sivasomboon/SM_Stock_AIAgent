@@ -248,3 +248,18 @@ def get_candles_and_indicators(symbol):
     except Exception as e:
         print(f"[INDICATOR ERROR] {symbol}: {e}")
         return {"history": closes, "technicals": {}}
+
+def get_general_market_news():
+    """ 
+    Get General Market News from Finnhub (Fallback when specific news is missing).
+    """
+    try:
+        # category='general' for US/Global macro
+        news = _get_finnhub('/news', {'category': 'general'})
+        if news and isinstance(news, list):
+            # Take top 5 to avoid token overload
+            return news[:5]
+        return []
+    except Exception as e:
+        print(f"[MARKET NEWS ERROR] {e}")
+        return []

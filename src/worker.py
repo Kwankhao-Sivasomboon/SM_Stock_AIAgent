@@ -100,7 +100,9 @@ def check_jobs():
     """
     Runs hourly (at minute 0) to check if any schedule needs to trigger.
     """
-    now = datetime.datetime.now()
+    import pytz
+    tz = pytz.timezone('Asia/Bangkok')
+    now = datetime.datetime.now(tz)
     # Snap to nearest hour for comparison (e.g. 09:01 -> 09:00)
     current_time_str = now.strftime("%H:00")
     

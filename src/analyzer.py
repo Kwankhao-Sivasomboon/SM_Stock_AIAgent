@@ -12,8 +12,12 @@ class AnalysisEngine:
         - If .BK -> Go straight to Settrade (Skip Finnhub latency)
         - If US -> Try Twelve Data/Finnhub
         """
-        from thai_stock_helper import get_thai_stock_data as get_thai_quote
-        from global_stock_helper import get_quote, get_company_profile, get_market_news, get_candles_and_indicators
+        try:
+            from thai_stock_helper import get_thai_stock_data as get_thai_quote
+            from global_stock_helper import get_quote, get_company_profile, get_market_news, get_candles_and_indicators, get_general_market_news
+        except ImportError as e:
+            print(f"[CRITICAL IMPORT ERROR] {e}")
+            return None
 
         symbol = symbol.upper()
         # Clean symbol if user typed "PTT.BK "
@@ -111,12 +115,25 @@ class AnalysisEngine:
                     except Exception as e: 
                         print(f"[TECH DATA ERROR] {e}")
                     
-                    # 4. News - Finnhub
+                    # 4. Hybrid News Strategy - Finnhub
                     try:
-                        raw_news = get_market_news(symbol)
-                        for n in raw_news:
-                            if 'headline' in n: news_items.append(n['headline'])
-                    except: pass
+                        # A. Specific Company News (Top 3)
+                        specific_news = get_market_news(symbol)
+                        s_items = []
+                        if specific_news:
+                            s_items = [n['headline'] for n in specific_news[:3] if 'headline' in n]
+
+                        # B. Global Macro News (Top 2) - Always fetch to provide context
+                        macro_news = get_general_market_news()
+                        m_items = [f"[GLOBAL MACRO] {n.get('headline', '')}" for n in macro_news[:2]]
+                        
+                        # Combine: Specific First, then Macro
+                        news_items = s_items + m_items
+                        
+                        if not news_items:
+                            print(f"[ANALYZER] No news found for {symbol} (Specific or Macro).")
+                    except Exception as e: 
+                        print(f"[NEWS ERROR] {e}")
                 else:
                     print(f"[ANALYZER] No Quote Data for {symbol}")
                     return None
@@ -146,7 +163,7 @@ class AnalysisEngine:
                     "metrics": {
                         "Price": "N/A", "P/E": "-", "Yield": "-", "RSI": "-",
                         "price": 0.0, "pe_ratio": 0.0, "div_yield": 0.0, "market_cap": "N/A",
-                        "technicals": {"rsi": "-", "sma50": "-", "year_high": "-", "year_low": "-"} # Crucial: Populated dummy dict
+                        "technicals": {"rsi": "-", "sma50": "-", "year_high": "-", "year_low": "-"}
                     },
                     "signal": "ERROR",
                     "reason": "ไม่สามารถดึงข้อมูลได้ (ตลาดปิดหรืออยู่นอกเวลาทำการ)",
