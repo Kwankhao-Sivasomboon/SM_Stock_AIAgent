@@ -140,14 +140,15 @@ class AnalysisEngine:
             data = self.fetch_data(symbol)
             
             if not data:
+                print(f"[DEBUG] Generating Error Struct for {symbol} due to missing data.")
                 return {
                     "symbol": symbol,
                     "metrics": {
                         "Price": "N/A", "P/E": "-", "Yield": "-", "RSI": "-",
-                        "price": None, "pe_ratio": None, "div_yield": None, "market_cap": None,
-                        "technicals": {} # Crucial: Must exist for template safe_get
+                        "price": 0.0, "pe_ratio": 0.0, "div_yield": 0.0, "market_cap": "N/A",
+                        "technicals": {"rsi": "-", "sma50": "-", "year_high": "-", "year_low": "-"} # Crucial: Populated dummy dict
                     },
-                    "signal": "WAIT",
+                    "signal": "ERROR",
                     "reason": "ไม่สามารถดึงข้อมูลได้ (ตลาดปิดหรืออยู่นอกเวลาทำการ)",
                     "news_summary": "-",
                     "history": [],
@@ -220,4 +221,17 @@ class AnalysisEngine:
 
         except Exception as e:
             print(f"[CRITICAL ANALYZE ERROR] {e}")
-            return None
+            return {
+                "symbol": symbol,
+                "metrics": {
+                    "Price": "N/A", "P/E": "-", "Yield": "-", "RSI": "-",
+                    "price": 0.0, "pe_ratio": 0.0, "div_yield": 0.0, "market_cap": "N/A",
+                    "technicals": {"rsi": "-", "sma50": "-", "year_high": "-", "year_low": "-"}
+                },
+                "signal": "ERROR",
+                "reason": f"ระบบขัดข้อง: {str(e)[:50]}...",
+                "news_summary": "-",
+                "history": [],
+                "news": [],
+                "technicals": {}
+            }

@@ -280,8 +280,6 @@ def get_analysis_flex(symbol, signal, recommendation, details):
              for item in reversed(graph_section):
                  payload["body"]["contents"].insert(0, item)
 
-        # Final Recursive Replace and Return
-        final_content = _replace_recursive(payload, replacements)
-        return {"type": "flex", "altText": f"Analysis {symbol}", "contents": final_content}
-
-    return None
+    # Final Recursive Replace and Return (Always execute)
+    final_content = _replace_recursive(payload, replacements)
+    return {"type": "flex", "altText": f"Analysis {symbol}", "contents": final_content}

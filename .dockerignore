@@ -34,3 +34,4 @@ images/
 *.svg
 .env
 *.db
+GCP_powershell.txt

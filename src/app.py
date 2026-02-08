@@ -438,6 +438,8 @@ def handle_postback(event):
                         try:
                             res = analyzer.analyze(symbol, strategy=strategy, goal=goal, risk=risk)
                             if res and 'signal' in res:
+                                print(f"[DEBUG APP] Valid Result for {symbol}. Signal: {res['signal']}")
+                                
                                 # Prepare details with type safety
                                 details = res.get('metrics', {}).copy()
                                 details['history'] = res.get('history') or []
@@ -447,23 +449,38 @@ def handle_postback(event):
                                 
                                 try:
                                     f_msg = get_analysis_flex(symbol, res['signal'], res['reason'], details)
-                                    if f_msg and 'contents' in f_msg: return f_msg['contents']
+                                    if f_msg and 'contents' in f_msg: 
+                                        print(f"[DEBUG APP] Flex Generated for {symbol}. Returning content.")
+                                        return f_msg['contents']
+                                    else:
+                                        print(f"[DEBUG APP] Empty Flex for {symbol}: {f_msg}")
                                 except Exception as e_tmpl:
                                     print(f"[TEMPLATE ERROR] {symbol}: {e_tmpl}")
-                                    # Fallback: Simple Error Bubble to prevent disappearing
                                     return {
                                         "type": "bubble",
                                         "body": {
                                             "type": "box", "layout": "vertical",
                                             "contents": [
-                                                {"type": "text", "text": f"Error displaying {symbol}", "weight": "bold", "color": "#ff0000"},
+                                                {"type": "text", "text": f"Template Error: {symbol}", "color": "#ff0000"},
                                                 {"type": "text", "text": str(e_tmpl), "wrap": True, "size": "xs"}
                                             ]
                                         }
                                     }
+                            else:
+                                print(f"[DEBUG APP] Invalid Result for {symbol}: {res}")
+                                # Force Error Card (Black)
+                                f_msg = get_analysis_flex(symbol, "ERROR", "ไม่สามารถวิเคราะห์ได้ (ข้อมูลไม่เพียงพอ)", {})
+                                if f_msg and 'contents' in f_msg: return f_msg['contents']
+
                         except Exception as e:
                             print(f"[ANALYZE ERROR] {symbol}: {e}")
-                        return None
+                            # Force Error Card (Black)
+                            f_msg = get_analysis_flex(symbol, "ERROR", f"เกิดข้อผิดพลาด: {str(e)[:50]}", {})
+                            if f_msg and 'contents' in f_msg: return f_msg['contents']
+                        
+                        # Ultimate Fallback (Dead End)
+                        print(f"[DEBUG APP] Ultimate Fallback for {symbol}")
+                        return get_analysis_flex(symbol, "ERROR", "ไม่สามารถดึงข้อมูลได้ (System Failure)", {})['contents']
 
                     # Prepare Snapshot Data (avoid detached instance errors)
                     snapshot_items = []

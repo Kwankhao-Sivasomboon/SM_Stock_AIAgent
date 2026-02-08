@@ -31,7 +31,7 @@ class LLMService:
             return "AI Service Not Configured."
         try:
             # Old SDK Call Structure with Lower Temperature for Consistency
-            config = genai.types.GenerationConfig(temperature=0.2)
+            config = genai.types.GenerationConfig(temperature=0.1)
             response = self.model.generate_content(prompt, generation_config=config)
             if response and response.text:
                 return response.text.strip()
@@ -83,7 +83,7 @@ class LLMService:
             "2. REASON: Explain the analytical reasoning (Thai, 1 concise sentence).\n"
             "3. NEWS_SUMMARY: Summarize the provided news impact (Thai, 2-3 short sentences).\n"
             f"4. Focus context on '{strategy}' strategy and '{goal}' goal.\n"
-            "5. If news is not provided, NEWS_SUMMARY should be 'ไม่มีข่าวสำคัญในช่วงนี้'.\n"
+            "5. ALERT: Verify news relevance. If news is not directly about this stock, set NEWS_SUMMARY to 'ไม่มีข่าวที่เกี่ยวข้อง (AI Verified)'.\n"
             "6. Output MUST start with the SIGNAL.\n"
             "\nExample: HOLD | ราคายังทรงตัวเหนือแนวรับสำคัญ แต่ RSI เข้าใกล้เขต Overbought | ข่าวในช่วงนี้เน้นไปที่การประกาศกำไรที่ทรงตัวตามคาด แต่มีปัจจัยลบจากดอกเบี้ย"
         )
