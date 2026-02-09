@@ -1,6 +1,6 @@
 # AIAgent LineStock - AI-Powered Personal Investment Assistant
 
-A smart LINE Chatbot functioning as a personal financial analyst. It uses **Google Gemini 2.0 Flash** with **Finnhub, Settrade, and Twelve Data APIs** to analyze stock market data, technical indicators, and news in real-time, providing personalized investment recommendations based on user profiles.
+A smart LINE Chatbot functioning as a personal financial analyst. It uses **Google Gemini 2.5 Flash** with **Finnhub, Settrade, and Twelve Data APIs** to analyze stock market data, technical indicators, and news in real-time, providing personalized investment recommendations based on user profiles.
 
 ## UX/UI
 | Add Stock | Scheduler | Watchlist Carousel |
@@ -18,7 +18,7 @@ A smart LINE Chatbot functioning as a personal financial analyst. It uses **Goog
 ## Tech Stack
 
 *   **Core**: Python 3.10, Flask
-*   **AI/LLM**: Google Gemini 2.0 Flash (`google-genai` SDK)
+*   **AI/LLM**: Google Gemini 2.5 Flash (`google-genai` SDK)
 *   **Data Sources**:
     *   **Finnhub**: US/Global Stock News & Fundamental Data
     *   **Twelve Data**: Real-time US Price & Technical Indicators
@@ -53,7 +53,7 @@ The system follows a modern **Event-Driven Analysis** flow with robust error han
     *   **Solution**: Reduced API timeouts to 3 seconds and implemented a **Fail-Fast** mechanism to prioritize system responsiveness.
 *   **Challenge**: Inconsistent AI Signals and Market Hours handling.
     *   **Solution**:
-        *   **Deterministic AI**: Tuned LLM Temperature to 0.2 to ensure consistent BUY/SELL/HOLD advice for the same financial input.
+        *   **Deterministic AI**: Tuned LLM Temperature to 0.1 to ensure consistent BUY/SELL/HOLD advice for the same financial input.
         *   **Graceful Degradation**: If markets are closed or data is unavailable (e.g., Settrade error), the system returns a specific "WAIT" signal with an explanation instead of crashing or disappearing.
 
 ## License
