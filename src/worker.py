@@ -34,63 +34,98 @@ def prune_cache():
 
 def process_schedule(schedule):
     """
-    Process a single schedule: Fetch data, Analyze, Send Message
+    Process a single schedule: Fetch data, Analyze, Send Message (Carousel)
     """
     print(f"Running schedule for User {schedule.user_id}")
     db = SessionLocal()
     try:
+        # 1. IMMEDIATE LOCK: Update last_run first to prevent double-firing from Scheduler Retries
+        # Re-fetch schedule from this session to ensure attachment
+        current_sched = db.query(Schedule).filter(Schedule.id == schedule.id).first()
+        if not current_sched: return
+
+        current_sched.last_run = datetime.datetime.now()
+        db.commit()
+
         user = db.query(User).filter(User.id == schedule.user_id).first()
-        if not user:
-            return
+        if not user: return
 
         watchlist = db.query(Watchlist).filter(Watchlist.user_id == user.id).all()
         if not watchlist:
             print(f"User {user.id} has no watchlist.")
             return
 
-        # Sequential processing to respect API Rate Limits (Twelve Data: 8 req/min)
-        # Each analysis uses ~2 credits (Quote + Candles). Max 4 stocks/min.
-        # Delay 15s between stocks ensures we don't hit the limit.
-        for index, item in enumerate(watchlist):
+        # Deduplicate Watchlist (Keep unique symbols only)
+        seen_symbols = set()
+        unique_watchlist = []
+        for item in watchlist:
+            if item.symbol not in seen_symbols:
+                unique_watchlist.append(item)
+                seen_symbols.add(item.symbol)
+
+        # Container for Carousel Bubbles
+        flex_bubbles = []
+
+        # Sequential processing
+        total_items = len(unique_watchlist)
+        for index, item in enumerate(unique_watchlist):
             # Use specific setting if set, else fallback to global user setting
             strat = item.strategy or user.core_strategy
             goal = item.goal or user.investment_goal
             risk = item.risk or user.risk_appetite
             
-            print(f"[{index+1}/{len(watchlist)}] Analyzing {item.symbol}...")
+            print(f"[{index+1}/{total_items}] Analyzing {item.symbol}...")
             
-            # Pass ALL user contexts to Analyzer -> LLM
-            analysis_result = analyzer.analyze(
-                item.symbol, 
-                strategy=strat,
-                goal=goal,
-                risk=risk
-            )
-            
-            if analysis_result:
-                # Create Flex Message with new Technical Data inside details
-                flex = get_analysis_flex(
-                    symbol=analysis_result['symbol'],
-                    signal=analysis_result['signal'],
-                    recommendation=analysis_result['reason'],
-                    details=analysis_result['metrics'] # Contains Technicals like RSI
+            try:
+                # Pass ALL user contexts to Analyzer -> LLM
+                analysis_result = analyzer.analyze(
+                    item.symbol, 
+                    strategy=strat,
+                    goal=goal,
+                    risk=risk
                 )
                 
-                # Push Message to Line
-                try:
-                    line_bot_api.push_message(user.line_user_id, FlexSendMessage(alt_text=f"Update: {item.symbol}", contents=flex['contents']))
-                    print(f"Sent report for {item.symbol} to {user.line_user_id}")
-                except Exception as e:
-                    print(f"Failed to send line message: {e}")
-            
+                if analysis_result:
+                    # Debug News
+                    print(f"   > News Count for {item.symbol}: {len(analysis_result.get('news', []))}")
+
+                    # Create Flex Message Bubble
+                    flex = get_analysis_flex(
+                        symbol=analysis_result['symbol'],
+                        signal=analysis_result['signal'],
+                        recommendation=analysis_result['reason'],
+                        details=analysis_result['metrics']
+                    )
+                    
+                    # Extract only the 'contents' (Bubble) part for Carousel
+                    if flex and 'contents' in flex:
+                        flex_bubbles.append(flex['contents'])
+            except Exception as e_an:
+                print(f"Analysis Error {item.symbol}: {e_an}")
+
             # Rate Limit Delay (skip after last item)
-            if index < len(watchlist) - 1:
+            if index < total_items - 1:
                 print("Waiting 15s for API Rate Limit protection...")
                 time.sleep(15) 
-                    
-        # Update last run time
-        schedule.last_run = datetime.datetime.now()
-        db.commit()
+        
+        # Send All as Carousel
+        if flex_bubbles:
+            try:
+                # LINE limit is 12 bubbles per carousel (our max watchlist is 10, so safe)
+                carousel_payload = {
+                    "type": "carousel",
+                    "contents": flex_bubbles
+                }
+                
+                line_bot_api.push_message(
+                    user.line_user_id, 
+                    FlexSendMessage(alt_text=f"Daily Report ({total_items} Stocks)", contents=carousel_payload)
+                )
+                print(f"Sent Carousel Report to {user.line_user_id}")
+            except Exception as e:
+                print(f"Failed to send line message: {e}")
+        else:
+            print("No analysis generated.")
 
     except Exception as e:
         print(f"Error in process_schedule: {e}")
@@ -136,7 +171,7 @@ if __name__ == "__main__":
     scheduler.add_job(check_jobs, 'cron', minute=0)
     
     # Daily Job (Reset Cache at 03:00 AM)
-    scheduler.add_job(prune_cache, 'cron', hour=3, minute=0)
+    scheduler.add_job(prune_cache, 'cron', hour=4, minute=0)
     
     try:
         scheduler.start()

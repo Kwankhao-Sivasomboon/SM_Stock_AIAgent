@@ -36,7 +36,7 @@ def _get_twelve(endpoint, params={}):
         
     params['apikey'] = TWELVE_KEY
     try:
-        res = requests.get(f"{TWELVE_URL}{endpoint}", params=params, timeout=8) # Longer timeout for heavy data
+        res = requests.get(f"{TWELVE_URL}{endpoint}", params=params, timeout=15) # Longer timeout for heavy data
         res.raise_for_status()
         data = res.json()
         if 'code' in data and data['code'] != 200:
@@ -104,7 +104,7 @@ def get_company_profile(symbol):
             # If P/E is 0, we might want to retry fetching unless we just fetched it today.
             # Logic: Return cache only if it seems valid (has P/E)
             # If P/E is 0, we FORCE re-fetch (Fall through to Finnhub)
-            if age < 30 and (str(cached.pe_ratio) != '0.0' and cached.pe_ratio != 0):
+            if age < 1 and (str(cached.pe_ratio) != '0.0' and cached.pe_ratio != 0):
                 print(f"[CACHE HIT] Profile for {symbol} (Age: {age} days)")
                 return {
                     "pe": cached.pe_ratio,
@@ -113,7 +113,7 @@ def get_company_profile(symbol):
                     "name": cached.company_name
                 }
             
-            if age < 30:
+            if age < 1:
                 print(f"[CACHE HIT-BUT-INVALID] Profile for {symbol} (Age: {age} days) has P/E=0. Refetching...")
         
         # 2. Fetch Finnhub

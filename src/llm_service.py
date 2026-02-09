@@ -81,9 +81,9 @@ class LLMService:
             "RULES:\n"
             "1. SIGNAL: Choose from [BUY, SELL, HOLD, WAIT].\n"
             "2. REASON: Explain the analytical reasoning (Thai, 1 concise sentence).\n"
-            "3. NEWS_SUMMARY: Summarize the provided news impact (Thai, 2-3 short sentences).\n"
+            "3. NEWS_SUMMARY: Summarize the provided news/headlines. If specific news is missing, use global context (Thai, 2-3 sentences).\n"
             f"4. Focus context on '{strategy}' strategy and '{goal}' goal.\n"
-            "5. ALERT: Verify news relevance. If news is not directly about this stock, set NEWS_SUMMARY to 'ไม่มีข่าวที่เกี่ยวข้อง (AI Verified)'.\n"
+            "5. If absolutely NO news provided, set NEWS_SUMMARY to 'ไม่มีข่าวที่เกี่ยวข้อง'.\n"
             "6. Output MUST start with the SIGNAL.\n"
             "\nExample: HOLD | ราคายังทรงตัวเหนือแนวรับสำคัญ แต่ RSI เข้าใกล้เขต Overbought | ข่าวในช่วงนี้เน้นไปที่การประกาศกำไรที่ทรงตัวตามคาด แต่มีปัจจัยลบจากดอกเบี้ย"
         )

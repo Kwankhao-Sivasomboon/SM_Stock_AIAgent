@@ -184,11 +184,14 @@ def get_analysis_flex(symbol, signal, recommendation, details):
     # Safe Data Extraction (Handle None or Missing)
     def safe_get(key, fmt="{:.2f}"):
         val = details.get(key)
+        # Allow 0 as valid value (e.g. Yield 0%)
         if val is None or val == "" or val == "N/A": return "-"
         try:
             if isinstance(val, (int, float)):
                 return fmt.format(val)
-            return str(val)
+            # Try parsing string to float if possible
+            f_val = float(str(val).replace(',', ''))
+            return fmt.format(f_val)
         except:
             return str(val)
 
@@ -196,7 +199,7 @@ def get_analysis_flex(symbol, signal, recommendation, details):
     pe = safe_get("pe_ratio", "{:.2f}")
     
     yd_val = details.get("div_yield")
-    yd = f"{yd_val:.2f}%" if yd_val and isinstance(yd_val, (int, float)) and yd_val > 0 else "-"
+    yd = f"{yd_val:.2f}%" if yd_val is not None and isinstance(yd_val, (int, float)) else "-"
     
     rsi = details.get("technicals", {}).get("rsi") or "-"
     sma = details.get("technicals", {}).get("sma50") or "-"
@@ -207,22 +210,47 @@ def get_analysis_flex(symbol, signal, recommendation, details):
     yh = details.get("technicals", {}).get("year_high") or "-"
     yl = details.get("technicals", {}).get("year_low") or "-"
     
-    # Graph URL
+    # Graph URL (QuickChart Line Chart)
     hist = details.get('history', [])
     chart_url = "" 
     if hist and len(hist) > 1:
-        # Purple Line Chart
-        data_points = hist[-30:] # Last 30 points
-        chart_data = ",".join([str(round(p,2)) for p in data_points])
-        # QuickChart: purple line, no fill, minimal axes
-        chart_params = (
-            f"{{type:'sparkline',data:{{datasets:[{{data:[{chart_data}],"
-            f"borderColor:'#8854d0',backgroundColor:'rgba(136, 84, 208, 0.2)',fill:false,"
-            f"borderWidth:2}}]}},options:{{elements:{{point:{{radius:0}}}}}}}}"
-        )
-        chart_encoded = urllib.parse.quote(chart_params)
-        chart_url = f"https://quickchart.io/chart?c={chart_encoded}&w=300&h=100"
- 
+        # Simplify Data (Round to 1 decimal to save URL length)
+        # Take last 20 points only
+        data_points = hist[-20:]
+        chart_data = ",".join([str(round(p,1)) for p in data_points])
+        
+        # Simple Line Chart Configuration
+        # backgroundColor: Transparent white
+        chart_config = {
+            "type": "line",
+            "data": {
+                "labels": [""] * len(data_points), # Empty labels
+                "datasets": [{
+                    "data": [float(x) for x in chart_data.split(',')],
+                    "borderColor": "#8854d0",
+                    "borderWidth": 2,
+                    "fill": False,
+                    "pointRadius": 0
+                }]
+            },
+            "options": {
+                "legend": {"display": False},
+                "scales": {
+                    "xAxes": [{"display": False}],
+                    "yAxes": [{"display": False}]
+                }
+            }
+        }
+        
+        try:
+            # Encode JSON config
+            import json
+            chart_json = json.dumps(chart_config)
+            chart_encoded = urllib.parse.quote(chart_json)
+            chart_url = f"https://quickchart.io/chart?c={chart_encoded}&w=300&h=150&bkg=transparent"
+        except ImportError:
+            pass
+
     # News Text (Prioritize AI Summary in Thai)
     news_sum = details.get('news_summary')
     news_raw = details.get('news', [])
@@ -235,7 +263,6 @@ def get_analysis_flex(symbol, signal, recommendation, details):
         news_text = "ไม่มีข่าวสำคัญในช่วงนี้"
     
     # Truncate to avoid Flex Message limit error (Max ~100-150 chars for footer)
-    # Increased to 200 based on testing
     if len(news_text) > 200: news_text = news_text[:197] + "..."
 
     # Footer Link Logic
@@ -270,15 +297,25 @@ def get_analysis_flex(symbol, signal, recommendation, details):
     if chart_url and chart_url != "":
         graph_section = [
             {"type": "separator", "margin": "lg", "color": "#DDDDDD"},
-            {"type": "text", "text": "📈 30-Day Chart", "size": "xs", "weight": "bold", "color": "#888888", "margin": "sm", "align": "center"},
-            {"type": "image", "url": chart_url, "size": "full", "aspectRatio": "20:13", "aspectMode": "fit", "margin": "md"},
+            {"type": "text", "text": "📈 30-Day Trend", "size": "xs", "weight": "bold", "color": "#888888", "margin": "sm", "align": "center"},
+            {"type": "image", "url": chart_url, "size": "full", "aspectRatio": "2:1", "aspectMode": "fit", "margin": "md"},
             {"type": "separator", "margin": "lg", "color": "#DDDDDD"},
-            {"type": "box", "layout": "vertical", "contents": [], "height": "10px"} # Spacer
         ]
         
+        # Safe Insert: Check if body exists
         if "body" in payload and "contents" in payload["body"]:
+             # Insert after the first few items (Title/Price) or at the bottom if safer
+             # Let's insert BEFORE the metrics box (usually index 2 or 3)
+             # Better strategy: Append to the main list but before Footer? 
+             # No, let's Put it at Index 1 (After Title)
+             
+             # Find index of the main details box?
+             # Simplest: Insert at Index 2
+             target_idx = 2
+             if len(payload["body"]["contents"]) < 2: target_idx = len(payload["body"]["contents"])
+             
              for item in reversed(graph_section):
-                 payload["body"]["contents"].insert(0, item)
+                 payload["body"]["contents"].insert(target_idx, item)
 
     # Final Recursive Replace and Return (Always execute)
     final_content = _replace_recursive(payload, replacements)

@@ -21,7 +21,7 @@ class GlobalStockInfo(Base):
 def init_db():
     engine = create_engine(Config.DATABASE_URL)
     Base.metadata.create_all(engine)
-    print("✅ Table 'global_stock_info' created/verified.")
+    print("Table 'global_stock_info' created/verified.")
 
 if __name__ == "__main__":
     init_db()

@@ -237,7 +237,8 @@ class AnalysisEngine:
             return result
 
         except Exception as e:
-            print(f"[CRITICAL ANALYZE ERROR] {e}")
+            err_msg = f"{type(e).__name__}: {str(e)}"
+            print(f"[CRITICAL ANALYZE ERROR] {err_msg}")
             return {
                 "symbol": symbol,
                 "metrics": {
@@ -246,7 +247,7 @@ class AnalysisEngine:
                     "technicals": {"rsi": "-", "sma50": "-", "year_high": "-", "year_low": "-"}
                 },
                 "signal": "ERROR",
-                "reason": f"ระบบขัดข้อง: {str(e)[:50]}...",
+                "reason": f"Error: {err_msg[:100]}",
                 "news_summary": "-",
                 "history": [],
                 "news": [],
