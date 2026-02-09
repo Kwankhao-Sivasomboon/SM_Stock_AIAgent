@@ -5,7 +5,8 @@ from linebot import LineBotApi
 from linebot.models import FlexSendMessage
 
 from config import Config
-from database import SessionLocal, Schedule, User, Watchlist, GlobalStockInfo
+from database import SessionLocal, Schedule, User, Watchlist
+from init_cache_db import GlobalStockInfo
 from analyzer import AnalysisEngine
 from line_templates import get_analysis_flex
 
