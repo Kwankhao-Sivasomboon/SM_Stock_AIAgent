@@ -8,23 +8,18 @@ class AnalysisEngine:
 
     def fetch_data(self, symbol):
         """
-        Smart Fetch: 
-        - If .BK -> Go straight to Settrade (Skip Finnhub latency)
-        - If US -> Try Twelve Data/Finnhub
+        Fetch stock data from Settrade (Thai) or TwelveData/Finnhub (Global).
         """
         try:
             from thai_stock_helper import get_thai_stock_data as get_thai_quote
             from global_stock_helper import get_quote, get_company_profile, get_market_news, get_candles_and_indicators, get_general_market_news
         except ImportError as e:
-            print(f"[CRITICAL IMPORT ERROR] {e}")
+            print(f"[IMPORT ERROR] {e}")
             return None
 
-        symbol = symbol.upper()
-        # Clean symbol if user typed "PTT.BK "
-        symbol = symbol.strip()
+        symbol = symbol.upper().strip()
         is_thai = symbol.endswith('.BK')
         
-        # Data Containers
         price = 0
         pe = 0
         yd = 0
@@ -33,30 +28,22 @@ class AnalysisEngine:
         prices_list = []
         news_items = []
 
-        # --- PATH 1: THAI STOCK (.BK) ---
+        # Thai Stocks
         if is_thai:
-            print(f"[ANALYZER] Thai Stock detected ({symbol}). Using Settrade directly.")
+            print(f"[ANALYZER] Thai Stock detected ({symbol}).")
             try:
                 thai_data = get_thai_quote(symbol)
-                # Check for valid data
                 if thai_data and thai_data.get('price', 0) > 0:
                     price = thai_data['price']
                     pe = thai_data.get('pe', 0)
                     yd = thai_data.get('yield', 0)
-                    # Year Low/High
                     technicals['year_high'] = f"{thai_data.get('high', 0):.2f}"
                     technicals['year_low'] = f"{thai_data.get('low', 0):.2f}"
-                    # Market Cap (Estimate or N/A)
-                    if thai_data.get('val', 0) > 0:
-                         pass 
 
-                    # History & Technicals
                     prices_list = thai_data.get('history', [])
                     
-                    # Calculate Indicators (Pandas)
                     if prices_list and len(prices_list) >= 14:
                         try:
-                            # Convert to Series
                             series = pd.Series(prices_list)
                             
                             # SMA 50
@@ -77,21 +64,20 @@ class AnalysisEngine:
                             print(f"[CALC ERROR] {e}")
 
                 else:
-                    print(f"[ANALYZER] Settrade returned no data for {symbol}")
                     return None
             except Exception as e:
                 print(f"[ANALYZER] Settrade Error: {e}")
                 return None
 
-        # --- PATH 2: US/GLOBAL STOCK (No .BK) ---
+        # Global Stocks
         else:
             try:
-                # 1. Quote (Price) - Twelve Data
+                # Quote
                 quote = get_quote(symbol)
                 if quote and quote.get('c', 0) > 0:
                     price = quote['c']
                     
-                    # 2. Profile (PE, Cap, Yield) - Finnhub
+                    # Profile
                     try:
                         profile = get_company_profile(symbol) or {}
                         pe = profile.get('pe', 0)
@@ -102,40 +88,31 @@ class AnalysisEngine:
                     except Exception as e: 
                         print(f"[PROFILE ERROR] {e}")
                     
-                    # 3. Candles & Technicals (History, RSI, SMA) - Twelve Data
+                    # Technicals
                     try:
-                        # Polite delay for rate limit
                         time.sleep(1) 
                         tech_data = get_candles_and_indicators(symbol)
                         if tech_data:
                             prices_list = tech_data.get('history', [])
                             technicals.update(tech_data.get('technicals', {}))
-                            # Re-assert market cap
                             if market_cap != "N/A": technicals['market_cap'] = market_cap
                     except Exception as e: 
                         print(f"[TECH DATA ERROR] {e}")
                     
-                    # 4. Hybrid News Strategy - Finnhub
+                    # News
                     try:
-                        # A. Specific Company News (Top 3)
                         specific_news = get_market_news(symbol)
                         s_items = []
                         if specific_news:
                             s_items = [n['headline'] for n in specific_news[:3] if 'headline' in n]
 
-                        # B. Global Macro News (Top 2) - Always fetch to provide context
                         macro_news = get_general_market_news()
                         m_items = [f"[GLOBAL MACRO] {n.get('headline', '')}" for n in macro_news[:2]]
                         
-                        # Combine: Specific First, then Macro
                         news_items = s_items + m_items
-                        
-                        if not news_items:
-                            print(f"[ANALYZER] No news found for {symbol} (Specific or Macro).")
                     except Exception as e: 
                         print(f"[NEWS ERROR] {e}")
                 else:
-                    print(f"[ANALYZER] No Quote Data for {symbol}")
                     return None
 
             except Exception as e:
@@ -153,11 +130,9 @@ class AnalysisEngine:
 
     def analyze(self, symbol, strategy="Value", goal="Medium", risk="Medium"):
         try:
-            # Fetch Data
             data = self.fetch_data(symbol)
             
             if not data:
-                print(f"[DEBUG] Generating Error Struct for {symbol} due to missing data.")
                 return {
                     "symbol": symbol,
                     "metrics": {
@@ -173,29 +148,25 @@ class AnalysisEngine:
                     "technicals": {}
                 }
 
-            # Prepare Result Dict
             result = {
                 "symbol": symbol,
                 "metrics": {
-                    # Display Strings
                     "Price": f"{data['price']:,.2f}",
                     "P/E": f"{data['pe_ratio']:.2f}" if data['pe_ratio'] else "N/A",
                     "Yield": f"{data['div_yield']:.2f}%" if data['div_yield'] else "N/A",
                     "RSI": data['technicals'].get('rsi', 'N/A'),
                     
-                    # Raw Values for Template (Fix Missing Data Issue)
                     "price": data['price'],
-                    "pe_ratio": data['pe_ratio'] if data['pe_ratio'] and data['pe_ratio'] != 0 else None,
-                    "div_yield": data['div_yield'] if data['div_yield'] and data['div_yield'] != 0 else None,
+                    "pe_ratio": data['pe_ratio'],
+                    "div_yield": data['div_yield'],
                     "market_cap": data['technicals'].get('market_cap') if data['technicals'].get('market_cap') != "N/A" else None,
-                    "technicals": data['technicals'] # Pass nested technicals
+                    "technicals": data['technicals']
                 },
                 "history": data['history'],
                 "news": data['news'],
                 "technicals": data['technicals']
             }
             
-            # Flatten metrics to top-level for Template compatibility
             result.update(result['metrics'])
 
             # AI Analysis (One-Shot: Signal + Reason + News Summary)

@@ -8,7 +8,7 @@ from linebot.models import (
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__))) # Fix ModuleNotFoundError in Docker
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config import Config
 from database import SessionLocal, User, Watchlist
@@ -24,20 +24,18 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# --- DEBUG: Check File System on Cloud Run ---
-print(f"[DEBUG_INIT] BASE_DIR: {Config.BASE_DIR}")
+# Verify line_ux directory
+print(f"[INIT] BASE_DIR: {Config.BASE_DIR}")
 ux_dir = os.path.join(Config.BASE_DIR, 'line_ux')
 if os.path.exists(ux_dir):
-    print(f"[DEBUG_INIT] Found 'line_ux' with files: {os.listdir(ux_dir)}")
+    print(f"[INIT] Found 'line_ux'")
 else:
-    print(f"[DEBUG_INIT] CRITICAL: 'line_ux' directory NOT FOUND at {ux_dir}")
-# ---------------------------------------------
-# Initialize Line API
+    print(f"[INIT] CRITICAL: 'line_ux' directory NOT FOUND at {ux_dir}")
+
 line_bot_api = LineBotApi(Config.LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(Config.LINE_CHANNEL_SECRET)
 analyzer = AnalysisEngine()
 
-# Simple In-Memory State
 USER_STATES = {}
 _db_initialized = False
 
@@ -49,7 +47,6 @@ def ensure_db_initialized():
             print("Lazy initializing database...")
             Base.metadata.create_all(bind=engine)
             
-            # Also init GlobalStockInfo table
             try:
                 from init_cache_db import Base as CacheBase
             except ImportError:
@@ -89,7 +86,6 @@ def check_stock_exists(symbol):
     """
     Check stock existence: Try Finnhub First -> Fallback to Settrade (Thai)
     """
-    # 1. Try Finnhub (Fast & US Stocks)
     try:
         quote = get_quote_finnhub(symbol)
         if quote and quote['c'] > 0:
@@ -97,15 +93,9 @@ def check_stock_exists(symbol):
     except Exception as e:
         print(f"[Check Stock Finnhub Error] {e}")
 
-    # 2. Fallback to Settrade (Thai Stocks)
-    # Check .BK removed automatically inside helper, but logic is fine
     print(f"[Check Stock] Falling back to Settrade for {symbol}")
     try:
-        # Check original (e.g., PTT)
         thai_data = get_thai_quote(symbol)
-        
-        # If successful, return PTT.BK (Standardize for DB)
-        # Note: Settrade returns raw price, let's trust it
         if thai_data and thai_data.get('price', 0) > 0:
             if not symbol.upper().endswith(".BK"):
                  return symbol.upper() + ".BK", thai_data['price']

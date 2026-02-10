@@ -83,15 +83,17 @@ try:
 except ImportError:
     from src.config import Config
 
-# DB Setup for Cache
-engine = create_engine(Config.DATABASE_URL)
-Session = sessionmaker(bind=engine)
+# DB Setup for Cache (Reuse from database.py to save connections)
+try:
+    from database import SessionLocal
+except ImportError:
+    from src.database import SessionLocal
 
 def get_company_profile(symbol):
     """ 
     Get Profile from Cache first, then Finnhub.
     """
-    session = Session()
+    session = SessionLocal()
     try:
         # 1. Check Cache
         cached = session.query(GlobalStockInfo).filter_by(symbol=symbol).first()

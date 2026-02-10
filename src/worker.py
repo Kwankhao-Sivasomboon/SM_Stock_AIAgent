@@ -86,27 +86,32 @@ def process_schedule(schedule):
                 )
                 
                 if analysis_result:
-                    # Debug News
-                    print(f"   > News Count for {item.symbol}: {len(analysis_result.get('news', []))}")
+                    # Data Prep
+                    details = analysis_result.get('metrics', {}).copy()
+                    details['history'] = analysis_result.get('history', [])
+                    details['news'] = analysis_result.get('news', [])
+                    details['technicals'] = analysis_result.get('technicals', {})
+                    details['news_summary'] = analysis_result.get('news_summary', '-')
 
-                    # Create Flex Message Bubble
                     flex = get_analysis_flex(
                         symbol=analysis_result['symbol'],
                         signal=analysis_result['signal'],
                         recommendation=analysis_result['reason'],
-                        details=analysis_result['metrics']
+                        details=details
                     )
                     
-                    # Extract only the 'contents' (Bubble) part for Carousel
                     if flex and 'contents' in flex:
                         flex_bubbles.append(flex['contents'])
             except Exception as e_an:
                 print(f"Analysis Error {item.symbol}: {e_an}")
 
-            # Rate Limit Delay (skip after last item)
+            # Rate Limit
             if index < total_items - 1:
-                print("Waiting 15s for API Rate Limit protection...")
-                time.sleep(15) 
+                if str(item.symbol).upper().endswith(".BK"):
+                    time.sleep(1)
+                else:
+                    print(f"Waiting 15s (Rate Limit)...")
+                    time.sleep(15) 
         
         # Send All as Carousel
         if flex_bubbles:

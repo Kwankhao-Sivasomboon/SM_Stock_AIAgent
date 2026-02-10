@@ -173,23 +173,17 @@ def get_scheduler_flex():
 
 def get_analysis_flex(symbol, signal, recommendation, details):
 
-    # Load JSON Template (Clean Code Approach)
     template = load_template("analysis.json")
     
-    # Color Map (Text Colors now, not background)
-    # BUY=Green, SELL=Red, WAIT=Blue (#33b5e5), HOLD=Yellow
     color_map = {"BUY": "#1DB446", "SELL": "#ff4444", "HOLD": "#ffbb33", "WAIT": "#33b5e5", "ERROR": "#000000"}
     signal_color = color_map.get(str(signal).upper(), "#000000")
     
-    # Safe Data Extraction (Handle None or Missing)
     def safe_get(key, fmt="{:.2f}"):
         val = details.get(key)
-        # Allow 0 as valid value (e.g. Yield 0%)
         if val is None or val == "" or val == "N/A": return "-"
         try:
             if isinstance(val, (int, float)):
                 return fmt.format(val)
-            # Try parsing string to float if possible
             f_val = float(str(val).replace(',', ''))
             return fmt.format(f_val)
         except:
@@ -210,21 +204,16 @@ def get_analysis_flex(symbol, signal, recommendation, details):
     yh = details.get("technicals", {}).get("year_high") or "-"
     yl = details.get("technicals", {}).get("year_low") or "-"
     
-    # Graph URL (QuickChart Line Chart)
     hist = details.get('history', [])
     chart_url = "" 
     if hist and len(hist) > 1:
-        # Simplify Data (Round to 1 decimal to save URL length)
-        # Take last 20 points only
         data_points = hist[-20:]
         chart_data = ",".join([str(round(p,1)) for p in data_points])
         
-        # Simple Line Chart Configuration
-        # backgroundColor: Transparent white
         chart_config = {
             "type": "line",
             "data": {
-                "labels": [""] * len(data_points), # Empty labels
+                "labels": [""] * len(data_points),
                 "datasets": [{
                     "data": [float(x) for x in chart_data.split(',')],
                     "borderColor": "#8854d0",
@@ -243,7 +232,6 @@ def get_analysis_flex(symbol, signal, recommendation, details):
         }
         
         try:
-            # Encode JSON config
             import json
             chart_json = json.dumps(chart_config)
             chart_encoded = urllib.parse.quote(chart_json)
@@ -251,18 +239,16 @@ def get_analysis_flex(symbol, signal, recommendation, details):
         except ImportError:
             pass
 
-    # News Text (Prioritize AI Summary in Thai)
     news_sum = details.get('news_summary')
     news_raw = details.get('news', [])
     
     if news_sum and news_sum != "-" and news_sum != "":
         news_text = news_sum
     elif news_raw and len(news_raw) > 0:
-        news_text = news_raw[0] # Fallback to raw English title
+        news_text = news_raw[0]
     else:
         news_text = "ไม่มีข่าวสำคัญในช่วงนี้"
     
-    # Truncate to avoid Flex Message limit error (Max ~100-150 chars for footer)
     if len(news_text) > 200: news_text = news_text[:197] + "..."
 
     # Footer Link Logic
