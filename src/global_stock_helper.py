@@ -55,22 +55,22 @@ def get_quote(symbol):
     """
     # 1. Quote Endpoint
     q_data = _get_twelve("/quote", {"symbol": symbol})
-    if not q_data: return None
-
-    try:
-        return {
-            "c": float(q_data.get("close", 0)),
-            "d": float(q_data.get("change", 0)),
-            "dp": float(q_data.get("percent_change", 0)),
-            "h": float(q_data.get("high", 0)),
-            "l": float(q_data.get("low", 0)),
-            "o": float(q_data.get("open", 0)),
-            "pc": float(q_data.get("previous_close", 0)),
-            "name": q_data.get("name", symbol)
-        }
-    except Exception as e:
-        print(f"[QUOTE PARSE ERROR] {symbol}: {e}")
-        return None
+    if q_data:
+        try:
+            return {
+                "c": float(q_data.get("close", 0)),
+                "d": float(q_data.get("change", 0)),
+                "dp": float(q_data.get("percent_change", 0)),
+                "h": float(q_data.get("high", 0)),
+                "l": float(q_data.get("low", 0)),
+                "o": float(q_data.get("open", 0)),
+                "pc": float(q_data.get("previous_close", 0)),
+                "name": q_data.get("name", symbol)
+            }
+        except Exception as e:
+            print(f"[TWELVE PARSE ERROR] {symbol}: {e}")
+            
+    return None
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

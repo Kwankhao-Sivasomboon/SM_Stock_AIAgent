@@ -72,51 +72,49 @@ class AnalysisEngine:
         # Global Stocks
         else:
             try:
-                # Quote
                 quote = get_quote(symbol)
                 if quote and quote.get('c', 0) > 0:
                     price = quote['c']
-                    
-                    # Profile
-                    try:
-                        profile = get_company_profile(symbol) or {}
-                        pe = profile.get('pe', 0)
-                        cap = profile.get('marketCapitalization', 0)
-                        market_cap = f"{cap:,.2f} M" if cap else "N/A"
-                        yd = profile.get('dividendYield', 0) 
-                        technicals['market_cap'] = market_cap
-                    except Exception as e: 
-                        print(f"[PROFILE ERROR] {e}")
-                    
-                    # Technicals
-                    try:
-                        time.sleep(1) 
-                        tech_data = get_candles_and_indicators(symbol)
-                        if tech_data:
-                            prices_list = tech_data.get('history', [])
-                            technicals.update(tech_data.get('technicals', {}))
-                            if market_cap != "N/A": technicals['market_cap'] = market_cap
-                    except Exception as e: 
-                        print(f"[TECH DATA ERROR] {e}")
-                    
-                    # News
-                    try:
-                        specific_news = get_market_news(symbol)
-                        s_items = []
-                        if specific_news:
-                            s_items = [n['headline'] for n in specific_news[:3] if 'headline' in n]
+                
+                # Profile (Fail silently for ETFs)
+                try:
+                    profile = get_company_profile(symbol) or {}
+                    pe = profile.get('pe', 0)
+                    cap = profile.get('marketCapitalization', 0)
+                    market_cap = f"{cap:,.2f} M" if cap else "N/A"
+                    yd = profile.get('dividendYield', 0) 
+                    technicals['market_cap'] = market_cap
+                except Exception as e: 
+                    print(f"[PROFILE ERROR] {symbol}: {e}")
+                
+                # Technicals (Fail silently if Rate Limited)
+                try:
+                    time.sleep(1) 
+                    tech_data = get_candles_and_indicators(symbol)
+                    if tech_data:
+                        prices_list = tech_data.get('history', [])
+                        technicals.update(tech_data.get('technicals', {}))
+                        if market_cap != "N/A": technicals['market_cap'] = market_cap
+                except Exception as e: 
+                    print(f"[TECH DATA ERROR] {symbol}: {e}")
+                
+                # News (Fail silently)
+                try:
+                    specific_news = get_market_news(symbol)
+                    s_items = [n['headline'] for n in specific_news[:3] if 'headline' in n] if specific_news else []
+                    macro_news = get_general_market_news()
+                    m_items = [f"[GLOBAL MACRO] {n.get('headline', '')}" for n in macro_news[:2]]
+                    news_items = s_items + m_items
+                except Exception as e: 
+                    print(f"[NEWS ERROR] {symbol}: {e}")
 
-                        macro_news = get_general_market_news()
-                        m_items = [f"[GLOBAL MACRO] {n.get('headline', '')}" for n in macro_news[:2]]
-                        
-                        news_items = s_items + m_items
-                    except Exception as e: 
-                        print(f"[NEWS ERROR] {e}")
-                else:
+                # Final Check: As long as we have a price, we continue
+                if price <= 0:
+                    print(f"[ANALYZER] No price for {symbol}, aborting.")
                     return None
 
             except Exception as e:
-                print(f"[ANALYZER] Global Stock Error: {e}")
+                print(f"[ANALYZER] Global Stock Critical Error: {e}")
                 return None
 
         return {
@@ -176,25 +174,36 @@ class AnalysisEngine:
                     data.get('news', []), strategy=strategy, goal=goal, technicals=data['technicals']
                 )
                 
-                # Smart Parsing for Signal | Reason | News Summary
-                parts = [p.strip() for p in ai_output.split('|')]
+                import re
+                # Robust Regex Parsing for "SIGNAL | REASON | NEWS_SUMMARY"
+                # Matches: (BUY/SELL...) | (Text) | (Text)
+                pattern = r"(BUY|SELL|HOLD|WAIT)\s*\|\s*(.*?)\s*\|\s*(.*)"
+                match = re.search(pattern, ai_output, re.DOTALL | re.IGNORECASE)
                 
-                valid_signals = ["BUY", "SELL", "HOLD", "WAIT"]
                 found_signal = "WAIT"
                 reason_text = "รอการวิเคราะห์เพิ่มเติม"
                 news_summary_text = "ไม่มีข่าวสำคัญในช่วงนี้"
 
-                # Parse Parts (Index 0: Signal, 1: Reason, 2: News)
-                if len(parts) >= 1:
-                    sig_candidate = parts[0].upper()
-                    for vs in valid_signals:
-                        if vs in sig_candidate:
-                            found_signal = vs
-                            break
-                
-                if len(parts) >= 2: reason_text = parts[1]
-                if len(parts) >= 3: news_summary_text = parts[2]
-                
+                valid_signals = ["BUY", "SELL", "HOLD", "WAIT"]
+
+                if match:
+                    # Regex Success
+                    found_signal = match.group(1).upper()
+                    reason_text = match.group(2).strip()
+                    news_summary_text = match.group(3).strip()
+                else:
+                    # Fallback: Manual Split (Handle cases where | might be missing or format slightly off)
+                    parts = [p.strip() for p in ai_output.split('|')]
+                    if len(parts) >= 1:
+                        # Attempt to find signal in first part
+                        sig_candidate = parts[0].upper()
+                        for vs in valid_signals:
+                            if vs in sig_candidate:
+                                found_signal = vs
+                                break
+                    if len(parts) >= 2: reason_text = parts[1]
+                    if len(parts) >= 3: news_summary_text = parts[2]
+
                 result['signal'] = found_signal
                 result['reason'] = reason_text
                 result['news_summary'] = news_summary_text

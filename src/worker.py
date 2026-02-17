@@ -68,50 +68,27 @@ def process_schedule(schedule):
 
         # Sequential processing
         total_items = len(unique_watchlist)
-        for index, item in enumerate(unique_watchlist):
-            # Use specific setting if set, else fallback to global user setting
-            strat = item.strategy or user.core_strategy
-            goal = item.goal or user.investment_goal
-            risk = item.risk or user.risk_appetite
-            
-            print(f"[{index+1}/{total_items}] Analyzing {item.symbol}...")
-            
-            try:
-                # Pass ALL user contexts to Analyzer -> LLM
-                analysis_result = analyzer.analyze(
-                    item.symbol, 
-                    strategy=strat,
-                    goal=goal,
-                    risk=risk
-                )
-                
-                if analysis_result:
-                    # Data Prep
-                    details = analysis_result.get('metrics', {}).copy()
-                    details['history'] = analysis_result.get('history', [])
-                    details['news'] = analysis_result.get('news', [])
-                    details['technicals'] = analysis_result.get('technicals', {})
-                    details['news_summary'] = analysis_result.get('news_summary', '-')
+        # Prepare Data for Service
+        clean_items = []
+        for item in unique_watchlist:
+            # Create simple object to pass to service
+            class ItemObj: pass
+            obj = ItemObj()
+            obj.symbol = item.symbol
+            obj.strategy = item.strategy or user.core_strategy or 'Value'
+            obj.goal = item.goal or user.investment_goal or 'Medium'
+            obj.risk = item.risk or user.risk_appetite or 'Medium'
+            clean_items.append(obj)
 
-                    flex = get_analysis_flex(
-                        symbol=analysis_result['symbol'],
-                        signal=analysis_result['signal'],
-                        recommendation=analysis_result['reason'],
-                        details=details
-                    )
-                    
-                    if flex and 'contents' in flex:
-                        flex_bubbles.append(flex['contents'])
-            except Exception as e_an:
-                print(f"Analysis Error {item.symbol}: {e_an}")
-
-            # Rate Limit
-            if index < total_items - 1:
-                if str(item.symbol).upper().endswith(".BK"):
-                    time.sleep(1)
-                else:
-                    print(f"Waiting 15s (Rate Limit)...")
-                    time.sleep(15) 
+        # Call Shared Service (Batch Mode)
+        # We don't use callback here because we want to bundle everything into a Carousel
+        from services import process_stock_list
+        try:
+            print(f"Processing {len(clean_items)} items via Service...")
+            flex_bubbles = process_stock_list(clean_items)
+        except Exception as e:
+            print(f"Service Error: {e}")
+            flex_bubbles = [] 
         
         # Send All as Carousel
         if flex_bubbles:

@@ -415,135 +415,50 @@ def handle_postback(event):
 
                 # 2. Fire-and-Forget Background Task
                 import threading
-                def run_analysis_task(user_id, items, user_settings):
-                    # Re-create DB session inside thread if needed, or pass data explicitly
-                    # Here we pass objects that don't need persistent DB session or re-query safely
-                    
-                    report_bubbles = []
-                    import time
-                    
-                    def process_item(item_data):
-                        # Construct minimal item object or pass dict
-                        symbol, strategy, goal, risk = item_data
-                        try:
-                            res = analyzer.analyze(symbol, strategy=strategy, goal=goal, risk=risk)
-                            if res and 'signal' in res:
-                                print(f"[DEBUG APP] Valid Result for {symbol}. Signal: {res['signal']}")
-                                
-                                # Prepare details with type safety
-                                details = res.get('metrics', {}).copy()
-                                details['history'] = res.get('history') or []
-                                details['news'] = res.get('news') or []
-                                details['technicals'] = res.get('technicals') or {}
-                                details['news_summary'] = res.get('news_summary', '-')
-                                
-                                try:
-                                    f_msg = get_analysis_flex(symbol, res['signal'], res['reason'], details)
-                                    if f_msg and 'contents' in f_msg: 
-                                        print(f"[DEBUG APP] Flex Generated for {symbol}. Returning content.")
-                                        return f_msg['contents']
-                                    else:
-                                        print(f"[DEBUG APP] Empty Flex for {symbol}: {f_msg}")
-                                except Exception as e_tmpl:
-                                    print(f"[TEMPLATE ERROR] {symbol}: {e_tmpl}")
-                                    return {
-                                        "type": "bubble",
-                                        "body": {
-                                            "type": "box", "layout": "vertical",
-                                            "contents": [
-                                                {"type": "text", "text": f"Template Error: {symbol}", "color": "#ff0000"},
-                                                {"type": "text", "text": str(e_tmpl), "wrap": True, "size": "xs"}
-                                            ]
-                                        }
-                                    }
-                            else:
-                                print(f"[DEBUG APP] Invalid Result for {symbol}: {res}")
-                                # Force Error Card (Black)
-                                f_msg = get_analysis_flex(symbol, "ERROR", "ไม่สามารถวิเคราะห์ได้ (ข้อมูลไม่เพียงพอ)", {})
-                                if f_msg and 'contents' in f_msg: return f_msg['contents']
-
-                        except Exception as e:
-                            print(f"[ANALYZE ERROR] {symbol}: {e}")
-                            # Force Error Card (Black)
-                            f_msg = get_analysis_flex(symbol, "ERROR", f"เกิดข้อผิดพลาด: {str(e)[:50]}", {})
-                            if f_msg and 'contents' in f_msg: return f_msg['contents']
-                        
-                        # Ultimate Fallback (Dead End)
-                        print(f"[DEBUG APP] Ultimate Fallback for {symbol}")
-                        return get_analysis_flex(symbol, "ERROR", "ไม่สามารถดึงข้อมูลได้ (System Failure)", {})['contents']
-
-                    # Prepare Snapshot Data (avoid detached instance errors)
-                    snapshot_items = []
-                    for item in items:
-                        strat = item.strategy or user_settings['core_strategy'] or "General"
-                        print(f"[DEBUG STRATEGY] Symbol: {item.symbol} | Item Strat: '{item.strategy}' | Global Strat: '{user_settings.get('core_strategy')}' -> FINAL: '{strat}'")
-                        goal = item.goal or user_settings['investment_goal'] or "Medium"
-                        risk = item.risk or user_settings['risk_appetite'] or "Medium"
-                        snapshot_items.append((item.symbol, strat, goal, risk))
-
-                    reports_bubbles = []
-                    import time
-                    
-                    # 3. Smart Throttling Processing
-                    # Thai Stocks: Fast (No limit) -> Sleep 1s
-                    # Global Stocks: 8 req/min -> Target 15s cycle per stock
-                    
-                    total_items = len(snapshot_items)
-                    for idx, data in enumerate(snapshot_items):
-                        start_time = time.time()
-                        symbol = data[0]
-                        is_thai = symbol.upper().endswith('.BK')
-                        
-                        print(f"[Analyze Task] Processing {idx+1}/{total_items} ({symbol})...")
-                        
-                        # Call process_item (which calls analyzer.analyze)
-                        bubble = process_item(data)
-                        if bubble:
-                            report_bubbles.append(bubble)
-                        
-                        # Smart Delay Logic
-                        if idx < total_items - 1:
-                            elapsed = time.time() - start_time
-                            if is_thai:
-                                # Thai stocks are fast and no rate limit
-                                time.sleep(1) 
-                            else:
-                                # Global: Ensure at least 15s passed since start
-                                # This accounts for processing time (e.g. 8s process -> 7s sleep)
-                                wait_time = max(0, 15.0 - elapsed)
-                                print(f"[Rate Limit] Loop took {elapsed:.2f}s. Sleeping {wait_time:.2f}s...")
-                                time.sleep(wait_time)
-                    
-                    # 3. Push Result via Push Message
-                    if report_bubbles:
-                        chunk_size = 10
-                        for i in range(0, len(report_bubbles), chunk_size):
-                            chunk = report_bubbles[i:i + chunk_size]
-                            try:
-                                line_bot_api.push_message(
-                                    user_id, 
-                                    FlexSendMessage(
-                                        alt_text="Analysis Report", 
-                                        contents={"type": "carousel", "contents": chunk}
-                                    )
-                                )
-                            except Exception as e:
-                                print(f"Push Error: {e}")
-                    else:
-                        try:
-                            line_bot_api.push_message(user_id, TextSendMessage(text="! ไม่สามารถดึงข้อมูลได้ในขณะนี้"))
-                        except: pass
-
-                # Capture User Settings for Thread
-                user_settings = {
+                
+                # Snapshot Data (to avoid DB DetachedInstanceError in thread)
+                user_settings_snapshot = {
                     'core_strategy': user.core_strategy,
                     'investment_goal': user.investment_goal,
                     'risk_appetite': user.risk_appetite
                 }
                 
+                safe_items = []
+                for item in items:
+                    safe_items.append({
+                        'symbol': item.symbol, 
+                        'strategy': item.strategy,
+                        'goal': item.goal,
+                        'risk': item.risk
+                    })
+
+                def run_analysis_safe(u_id, s_items, u_settings):
+                    from services import process_stock_list
+                    # Helper class for service compatibility
+                    class ItemObj: pass
+                    
+                    final_items = []
+                    for d in s_items:
+                        obj = ItemObj()
+                        obj.symbol = d['symbol']
+                        obj.strategy = d['strategy'] or u_settings.get('core_strategy', 'Value')
+                        obj.goal = d['goal'] or u_settings.get('investment_goal', 'Medium')
+                        obj.risk = d['risk'] or u_settings.get('risk_appetite', 'Medium')
+                        final_items.append(obj)
+                    
+                    def on_result(bubble):
+                        try:
+                            # Push immediately
+                            line_bot_api.push_message(u_id, FlexSendMessage(alt_text="Analysis Result", contents=bubble))
+                        except Exception as e:
+                            print(f"[PUSH ERROR] {e}")
+
+                    # Call Service
+                    process_stock_list(final_items, callback_func=on_result)
+
                 # Start Thread
-                thread = threading.Thread(target=run_analysis_task, args=(user_id, items, user_settings))
-                thread.start()
+                bg_thread = threading.Thread(target=run_analysis_safe, args=(user.id, safe_items, user_settings_snapshot))
+                bg_thread.start()
                 # Function ends here, returning 200 OK immediately to LINE
 
         elif action == 'our_products':

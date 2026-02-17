@@ -249,7 +249,7 @@ def get_analysis_flex(symbol, signal, recommendation, details):
     else:
         news_text = "ไม่มีข่าวสำคัญในช่วงนี้"
     
-    if len(news_text) > 200: news_text = news_text[:197] + "..."
+    if len(news_text) > 140: news_text = news_text[:137] + "..."
 
     # Footer Link Logic
     is_thai = ".BK" in str(symbol).upper()
